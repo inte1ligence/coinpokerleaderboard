@@ -1,3 +1,8 @@
+from flask import Flask
+
+
+
+
 import discord
 from discord.ext import commands
 import requests
@@ -58,3 +63,12 @@ async def leaderboard(ctx):
 
 print("🚀 Запускаю bot.run()")
 bot.run(TOKEN)
+
+app = Flask(__name__)
+
+@app.route("/")
+def index():
+    return "Hello Leapcell"
+
+if __name__ == "__main__":
+    app.run(debug=True)
