@@ -58,3 +58,7 @@ async def leaderboard(ctx):
 
 print("🚀 Запускаю bot.run()")
 bot.run(TOKEN)
+
+if __name__ == "__main__":
+sys.exit(main())
+
