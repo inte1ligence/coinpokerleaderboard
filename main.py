@@ -4,7 +4,7 @@ import requests
 from datetime import datetime
 import os
 
-TOKEN = "MTQ3MTE3MzE4NTI3Njg3MDg0OA.GU8vvN.UnvG4DNKnOytG9nPgi_lMjbO8BWngk9TdgzDaI"  # или впиши строкой для локального теста
+
 
 intents = discord.Intents.default()
 intents.message_content = True  # ОБЯЗАТЕЛЬНО для !l
