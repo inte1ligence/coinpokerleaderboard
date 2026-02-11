@@ -4,7 +4,7 @@ import requests
 from datetime import datetime
 import os
 
-
+TOKEN = os.environ.get("TOKEN")  # или впиши строкой для локального теста
 
 intents = discord.Intents.default()
 intents.message_content = True  # ОБЯЗАТЕЛЬНО для !l
@@ -56,4 +56,5 @@ async def leaderboard(ctx):
 
     await ctx.send(msg)
 
+print("🚀 Запускаю bot.run()")
 bot.run(TOKEN)
