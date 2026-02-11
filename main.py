@@ -1,3 +1,10 @@
+import discord
+from discord.ext import commands
+import requests
+from datetime import datetime
+import os
+
+
 intents = discord.Intents.default()
 intents.message_content = True  # ОБЯЗАТЕЛЬНО для !l
 
@@ -44,7 +51,9 @@ def format_leaderboard(title, players):
             f"{i:>2}. {nick:<{max_nick_len}}  {points:<{max_points_len}}"
         )
 
-    return "
+    return
+"\n" + "\n".join(lines) + "\n
+
 
 
 
