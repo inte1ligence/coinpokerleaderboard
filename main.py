@@ -47,17 +47,22 @@ def format_leaderboard(title, players):
     if not players:
         return f"{title}\n(нет данных)\n"
 
-    max_nick_len = max(len(p["nick_name"]) for p in players)
-    max_points_len = max(len(str(p["points"])) for p in players)
+    # Защита от пустых/некорректных данных
+    valid_players = [p for p in players if "nick_name" in p and "points" in p]
+    if not valid_players:
+        return f"{title}\n(нет данных)\n"
+
+    max_nick_len = max(len(p["nick_name"]) for p in valid_players)
+    max_points_len = max(len(str(p["points"])) for p in valid_players)
 
     lines = [title]
-    for i, p in enumerate(players, 1):
+    for i, p in enumerate(valid_players, 1):
         nick = p["nick_name"]
         points = str(p["points"])
-        lines.append(
-            f"{i:>2}. {nick:<{max_nick_len}}  {points:<{max_points_len}}"
-        )
-    return "\n" + "\n".join(lines) + "\n"
+        lines.append(f"{i:>2}. {nick:<{max_nick_len}}  {points:<{max_points_len}}")
+
+    return "\n".join(lines) + "\n"
+
 
 @bot.event
 async def on_ready():
@@ -66,6 +71,21 @@ async def on_ready():
 @bot.command()
 async def ping(ctx):
     await ctx.send("Pong! Бот работает.")
+
+@bot.command(name="l")
+async def leaderboard(ctx):
+    high = get_leaderboard("high-4hr")[:10]
+    low = get_leaderboard("low-4hr")[:15]
+
+    msg = "🏆 High leaderboard (TOP 10)**\n"
+    for i, p in enumerate(high, 1):
+        msg += f"{i}. {p['nick_name']} — {p['points']}\n"
+
+    msg += "\n🥈 Low leaderboard (TOP 15)**\n"
+    for i, p in enumerate(low, 1):
+        msg += f"{i}. {p['nick_name']} — {p['points']}\n"
+
+    await ctx.send(msg)
 
 @bot.event
 async def on_command_error(ctx, error):
