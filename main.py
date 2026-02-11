@@ -18,14 +18,15 @@ intents.messages = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"  # Исправлено: https://
+COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"
 
 def get_utc_date_time_slot():
     now = datetime.utcnow()
     date_str = now.strftime("%Y-%m-%d")
     start = (now.hour // 4) * 4
-    time_slot = f"{start}-{start + 4}"
+    time_slot = f"{start:02d}-{(start + 4):02d}"  # ведущие нули
     return date_str, time_slot
+
 
 def get_leaderboard(board_type):
     date_str, time_slot = get_utc_date_time_slot()
@@ -63,6 +64,12 @@ def format_leaderboard(title, players):
 
     return "\n".join(lines) + "\n"
 
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        await ctx.send("Команда не найдена. Используйте !help для списка команд.")
+    else:
+        logger.error(f"Ошибка команды: {error}")
 
 @bot.event
 async def on_ready():
@@ -73,26 +80,25 @@ async def ping(ctx):
     await ctx.send("Pong! Бот работает.")
 
 @bot.command(name="l")
+@commands.cooldown(1, 30, commands.BucketType.user)
 async def leaderboard(ctx):
-    high = get_leaderboard("high-4hr")[:10]
-    low = get_leaderboard("low-4hr")[:15]
+    try:
+        high = get_leaderboard("high-4hr")[:10]
+        low = get_leaderboard("low-4hr")[:15]
 
-    msg = "🏆 High leaderboard (TOP 10)**\n"
-    for i, p in enumerate(high, 1):
-        msg += f"{i}. {p['nick_name']} — {p['points']}\n"
+        if not high and not low:
+            await ctx.send("Нет данных для отображения.")
+            return
 
-    msg += "\n🥈 Low leaderboard (TOP 15)**\n"
-    for i, p in enumerate(low, 1):
-        msg += f"{i}. {p['nick_name']} — {p['points']}\n"
+        msg_high = format_leaderboard("🏆 High leaderboard (TOP 10)", high)
+        msg_low = format_leaderboard("🥈 Low leaderboard (TOP 15)", low)
 
-    await ctx.send(msg)
+        await ctx.send(msg_high + msg_low)
 
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        await ctx.send("Команда не найдена. Используйте !help для списка команд.")
-    else:
-        logger.error(f"Ошибка команды: {error}")
+    except Exception as e:
+        logger.error(f!Ошибка при выполнении !l: {e}")
+        await ctx.send("Ошибка при получении данных. Попробуйте позже.")
+
 
 if __name__ == "__main__":
     bot.run(os.getenv("DISCORD_TOKEN"))
