@@ -51,7 +51,7 @@ def format_leaderboard(title, players):
             f"{i:>2}. {nick:<{max_nick_len}}  {points:<{max_points_len}}"
         )
 
-    return "\n" + "\n".join(lines) + "\n
+    return "\n" + "\n".join(lines) + "\n"
 
 
 
