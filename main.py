@@ -52,7 +52,7 @@ def get_leaderboard(board_type):
                 content_type = r.headers.get("Content-Type", "")
                 if "application/json" in content_type:
                     try:
-                        logger.info(f"Получен ответ: {r.text}")  # ✅ Исправлено: f" → f"
+                        logger.info(f"Получен ответ: {r.text}")
                         return r.json().get("data", {}).get("data", [])
                     except ValueError as e:
                         logger.error(f"Не удалось декодировать JSON: {e}, ответ: {r.text}")
