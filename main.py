@@ -39,15 +39,16 @@ def get_leaderboard(board_type):
     logger.info(f"Отправляю запрос к API: {data}")
 
     try:
-        r = requests.post(COINPOKER_URL, data=data, timeout=15)
+        r = requests.post(COINPOKER_URL, data=data, timeout=20)
         if r.status_code == 200:
             logger.info(f!Получен ответ: {r.text}")
             return r.json().get("data", {}).get("data", [])
         else:
-            logger.error(f"API вернул код {r.status_code}: {r.text}")
+            logger.warning(f"API вернул код {r.status_code}: {r.text}")
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка API: {e}, URL: {COINPOKER_URL}, данные: {data}")
     return []
+
 
 
 def format_leaderboard(title, players):
