@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import requests
 from datetime import datetime
+from datetime import timezone
 import os
 import logging
 import sys
@@ -21,7 +22,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"
 
 def get_utc_date_time_slot():
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y-%m-%d")
     start = (now.hour // 4) * 4
     time_slot = f"{start}-{start + 4}"
@@ -71,9 +72,21 @@ async def on_command_error(ctx, error):
 async def ping(ctx):
     await ctx.send("Pong! Бот работает.")
 
+@bot.command()
+async def status(ctx):
+    await ctx.send(
+        f"Бот работает!\n"
+        f"Версия Python: {sys.version}\n"
+        f"Запущен: {bot.user.created_at.strftime('%Y-%m-%d %H:%M')}"
+    )
+
 @bot.event
 async def on_ready():
-    print(f"✅ Бот запущен как {bot.user}")
+    if not hasattr(bot, 'started'):
+        bot.started = True
+        logger.info(f"✅ Бот запущен как {bot.user}")
+    else:
+        logger.warning("Повторное подключение — игнорирую.")
 
 
 @bot.command(name="l")
