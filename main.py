@@ -39,35 +39,35 @@ def get_leaderboard(board_type):
     }
     logger.info(f"Отправляю запрос к API: {data}")
 
-    for attempt in range(3):  # 3 попытки
+    for attempt in range(3):
         try:
             r = requests.post(COINPOKER_URL, data=data, timeout=20)
 
-            # Проверяем размер ответа
+            # Проверка размера ответа
             if len(r.content) > 1_000_000:
                 logger.error("Ответ API слишком большой (>1 МБ)")
                 return []
 
             if r.status_code == 200:
-                # Проверяем Content-Type
                 content_type = r.headers.get("Content-Type", "")
-                if "application/json" in content_type:  # Исправлено: contenttype → content_type
+                if "application/json" in content_type:
                     try:
-                        logger.info(f"Получен ответ: {r.text}")
+                        logger.info(f"Получен ответ: {r.text}")  # ✅ Исправлено: f" → f"
                         return r.json().get("data", {}).get("data", [])
                     except ValueError as e:
                         logger.error(f"Не удалось декодировать JSON: {e}, ответ: {r.text}")
                 else:
-                    logger.error(f"Ответ не JSON: Content-Type={content_type}, текст: {r.text}")  # Исправлено: contenttype → content_type
+                    logger.error(f"Ответ не JSON: Content-Type={content_type}, текст: {r.text}")
             else:
                 logger.warning(f"Попытка {attempt + 1} API вернул код {r.status_code}: {r.text}")
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Попытка {attempt + 1} ошибка сети: {e}, URL: {COINPOKER_URL}, данные: {data}")
 
-        time.sleep(2)  # пауза перед повторной попыткой
+        time.sleep(2)
 
-    return []  # после 3 неудачных попыток
+    return []
+
 
 def format_leaderboard(title, players):
     if not players:
