@@ -88,5 +88,13 @@ async def leaderboard(ctx):
 
     await ctx.send(msg)
 
+@bot.command()
+async def help(ctx):
+    await ctx.send(
+        "Команды:\n"
+        "!l — лидерборды (High/Low)\n"
+        "!ping — проверка работы бота"
+    )
+
 if __name__ == "__main__":
     bot.run(os.getenv("DISCORD_TOKEN"))
