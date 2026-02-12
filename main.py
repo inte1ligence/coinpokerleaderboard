@@ -17,17 +17,16 @@ intents.message_content = True  # ОБЯЗАТЕЛЬНО для !l
 intents.guilds = True
 intents.messages = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"
 
 def get_utc_date_time_slot():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)  # вместо utcnow()
     date_str = now.strftime("%Y-%m-%d")
     start = (now.hour // 4) * 4
-    time_slot = f"{start}-{start + 4}"
+    time_slot = f"{start:02d}-{(start + 4):02d}"
     return date_str, time_slot
-
 
 def get_leaderboard(board_type):
     date_str, time_slot = get_utc_date_time_slot()
@@ -37,9 +36,17 @@ def get_leaderboard(board_type):
         "time_slot": time_slot,
         "leaderboard": board_type
     }
-    r = requests.post(COINPOKER_URL, data=data, timeout=10)
-    if r.status_code == 200:
-        return r.json().get("data", {}).get("data", [])
+    logger.info(f"Отправляю запрос к API: {data}")
+
+    try:
+        r = requests.post(COINPOKER_URL, data=data, timeout=15)
+        if r.status_code == 200:
+            logger.info(f!Получен ответ: {r.text}")
+            return r.json().get("data", {}).get("data", [])
+        else:
+            logger.error(f"API вернул код {r.status_code}: {r.text}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ошибка API: {e}, URL: {COINPOKER_URL}, данные: {data}")
     return []
 
 
