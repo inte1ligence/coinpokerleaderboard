@@ -28,6 +28,7 @@ def get_utc_date_time_slot():
     time_slot = f"{start:02d}-{(start + 4):02d}"
     return date_str, time_slot
 
+
 def get_leaderboard(board_type):
     date_str, time_slot = get_utc_date_time_slot()
     data = {
@@ -50,14 +51,14 @@ def get_leaderboard(board_type):
             if r.status_code == 200:
                 # Проверяем Content-Type
                 content_type = r.headers.get("Content-Type", "")
-                if "application/json" in contenttype:
+                if "application/json" in content_type:  # Исправлено: contenttype → content_type
                     try:
                         logger.info(f"Получен ответ: {r.text}")
                         return r.json().get("data", {}).get("data", [])
                     except ValueError as e:
                         logger.error(f"Не удалось декодировать JSON: {e}, ответ: {r.text}")
                 else:
-                    logger.error(f"Ответ не JSON: Content-Type={contenttype}, текст: {r.text}")
+                    logger.error(f"Ответ не JSON: Content-Type={content_type}, текст: {r.text}")  # Исправлено: contenttype → content_type
             else:
                 logger.warning(f"Попытка {attempt + 1} API вернул код {r.status_code}: {r.text}")
 
@@ -67,7 +68,6 @@ def get_leaderboard(board_type):
         time.sleep(2)  # пауза перед повторной попыткой
 
     return []  # после 3 неудачных попыток
-
 
 def format_leaderboard(title, players):
     if not players:
