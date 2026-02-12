@@ -38,17 +38,35 @@ def get_leaderboard(board_type):
     }
     logger.info(f"Отправляю запрос к API: {data}")
 
-    try:
-        r = requests.post(COINPOKER_URL, data=data, timeout=20)
-        if r.status_code == 200:
-            logger.info(f!Получен ответ: {r.text}")
-            return r.json().get("data", {}).get("data", [])
-        else:
-            logger.warning(f"API вернул код {r.status_code}: {r.text}")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Ошибка API: {e}, URL: {COINPOKER_URL}, данные: {data}")
-    return []
+    for attempt in range(3):  # 3 попытки
+        try:
+            r = requests.post(COINPOKER_URL, data=data, timeout=20)
 
+            # Проверяем размер ответа
+            if len(r.content) > 1_000_000:
+                logger.error("Ответ API слишком большой (>1 МБ)")
+                return []
+
+            if r.status_code == 200:
+                # Проверяем Content-Type
+                content_type = r.headers.get("Content-Type", "")
+                if "application/json" in contenttype:
+                    try:
+                        logger.info(f"Получен ответ: {r.text}")
+                        return r.json().get("data", {}).get("data", [])
+                    except ValueError as e:
+                        logger.error(f"Не удалось декодировать JSON: {e}, ответ: {r.text}")
+                else:
+                    logger.error(f"Ответ не JSON: Content-Type={contenttype}, текст: {r.text}")
+            else:
+                logger.warning(f"Попытка {attempt + 1} API вернул код {r.status_code}: {r.text}")
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Попытка {attempt + 1} ошибка сети: {e}, URL: {COINPOKER_URL}, данные: {data}")
+
+        time.sleep(2)  # пауза перед повторной попыткой
+
+    return []  # после 3 неудачных попыток
 
 
 def format_leaderboard(title, players):
