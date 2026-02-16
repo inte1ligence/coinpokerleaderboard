@@ -297,7 +297,7 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
         lines.append(line)
 
-    return "```\n" + "\n".join(lines) + "\n```"
+    return "\n".join(lines)
 
 
 
@@ -329,7 +329,7 @@ async def on_ready():
         logger.warning("Повторное подключение — игнорирую.")
 
 
-@bot.command(name="l")
+@bot.command(name="l", aliases=["д"])
 async def leaderboard(ctx):
     # Получаем ники из переменных окружения
     my_nicks_str = os.getenv("MY_NICKNAMES")
@@ -360,8 +360,7 @@ async def leaderboard(ctx):
     new_low = top15 + my_outside_top
 
     # Формируем сообщение с выплатами и эмоджи
-    msg = ""
-    msg = "```"
+    msg = "```\n"
     msg += format_leaderboard(
         "🏆 High leaderboard (TOP 10)",
         new_high,
@@ -369,8 +368,9 @@ async def leaderboard(ctx):
         time_slot=time_slot,
         board_type="high_leaderboard"
     )
-    msg = "```"
-    msg = "```"
+    
+    msg += "\n"
+    
     msg += format_leaderboard(
         "🥈 Low leaderboard (TOP 15)",
         new_low,
@@ -378,7 +378,9 @@ async def leaderboard(ctx):
         time_slot=time_slot,
         board_type="low_leaderboard"
     )
-    msg = "```"
+    
+    msg += "```"
+
 
     # Пояснение в конце (только если есть мои ники)
     if my_nicks:
