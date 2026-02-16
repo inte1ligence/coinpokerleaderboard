@@ -174,6 +174,42 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
     return "\n".join(lines)
 
+def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
+    """
+    Форматирует лидерборд с цветным выделением ников через упоминания ролей.
+    """
+    if not players:
+        return "(нет данных)"
+
+    payout_data = payouts.get(time_slot, {}).get(board_type, {})
+    lines = []
+
+    for p in players:
+        place = p["place"]
+        payout = payout_data.get(place, 0)
+        nick = p["nick_name"]
+
+        # Если ник в списке MY_NICKNAMES — заменяем на упоминание роли
+        if nick in my_nicks:
+            role = discord.utils.get(guild.roles, name=nick)
+            if role:
+                nick = role.mention  # Упоминание роли → цветной ник
+            else:
+                nick = f"**{nick}**"  # Если роли нет — жирный шрифт
+        else:
+            nick = nick  # Обычный ник
+
+        # Формируем строку с выравниванием
+        line = (
+            f"{place:>2}. "
+            f"{nick:<20} "  # Выравнивание по левому краю (ширина 20 символов)
+            f"{p['points']:>6} pts "
+            f"${payout:>4}"
+        )
+        lines.append(line)
+
+    return "\n".join(lines)
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
@@ -321,7 +357,77 @@ async def leaderboard(ctx):
         )
 
     await ctx.send(msg)
-    
+
+
+@bot.command(name="л", aliases=["k"])
+async def leaderboard(ctx):
+    # Получаем список ников из переменной окружения
+    my_nicks_str = os.getenv("MY_NICKNAMES")
+    if my_nicks_str:
+        my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
+    else:
+        my_nicks = []
+
+    date_str, time_slot = get_utc_date_time_slot()
+
+    # High leaderboard
+    high = get_leaderboard("high-4hr")
+    for i, player in enumerate(high, start=1):
+        player["place"] = i
+    top10 = high[:10]
+    top10_names = {p["nick_name"] for p in top10}
+    my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
+    new_high = top10 + my_outside_top
+
+    # Low leaderboard
+    low = get_leaderboard("low-4hr")
+    for i, player in enumerate(low, start=1):
+        player["place"] = i
+    top15 = low[:15]
+    top15_names = {p["nick_name"] for p in top15}
+    my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
+    new_low = top15 + my_outside_top
+
+    # Создаём Embed для форматированного вывода
+    embed = Embed(
+        title="🏆 Лидерборд CoinPoker",
+        colour=Colour.from_rgb(30, 144, 255),  # Голубой цвет заголовка
+        timestamp=datetime.now(timezone.utc)
+    )
+
+    # Формируем текст для High leaderboard с цветными никами
+    high_text = format_leaderboard_with_roles(
+        new_high,
+        my_nicks,
+        time_slot,
+        "high_leaderboard",
+        ctx.guild
+    )
+    embed.add_field(
+        name="🏆 High leaderboard (TOP 10)",
+        value=high_text,
+        inline=False
+    )
+
+    # Формируем текст для Low leaderboard с цветными никами
+    low_text = format_leaderboard_with_roles(
+        new_low,
+        my_nicks,
+        time_slot,
+        "low_leaderboard",
+        ctx.guild
+    )
+    embed.add_field(
+        name="🥈 Low leaderboard (TOP 15)",
+        value=low_text,
+        inline=False
+    )
+
+    # Добавляем пояснение
+    if my_nicks:
+        embed.set_footer(text="⭐ — ваши участники (выделены цветом роли)")
+
+    await ctx.send(embed=embed)
 
 # Запуск бота
 if __name__ == "__main__":
