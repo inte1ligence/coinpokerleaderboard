@@ -7,6 +7,7 @@ import logging
 import sys
 from discord import utils
 
+print("Utils доступен:", hasattr(utils, 'get'))  # Должен вывести True
 print(sys.version)
 print("Окружение:", os.environ)
 print("MY_NICKNAMES:", os.getenv("MY_NICKNAMES"))
