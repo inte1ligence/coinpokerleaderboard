@@ -190,7 +190,7 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     lines = []
 
-    # Заголовок (сохраняем стиль)
+    # Заголовок
     lines.append("🏅 Лидерборд CoinPoker")
     lines.append("")
 
@@ -198,53 +198,19 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
     lines.append("🏆 High leaderboard (TOP 10)")
     lines.append("-" * 40)
 
-    # Рассчитываем максимальную длину ника и очков (как в format_leaderboard)
-    max_nick_len = max(
-        len(p["nick_name"]) if p["nick_name"] not in my_nicks else len(p["nick_name"]) + 2  # +2 для "* "
-        for p in players[:10]
-    )
-    max_points_len = max(len(str(p["points"])) for p in players[:10])
-
-    for p in players[:10]:
-        place = p["place"]
-        payout = round(payout_data.get(place, 0), 2)
-        nick = p["nick_name"]
-        points = round(p["points"], 2)
-
-        # Преобразуем ник в @mention, если он в списке my_nicks
-        if nick in my_nicks:
-            member = utils.get(
-                role_color_map["guild"].members,
-                lambda m: m.display_name.lower() == nick.lower() or m.name.lower() == nick.lower()
-            )
-            if member:
-                nick = member.mention  # Используем упоминание через роль
-            else:
-                nick = f"@{nick}"  # Если роль не найдена
-
-        # Формируем строку с выравниванием (как в format_leaderboard)
-        line = (
-            f"{place:>2}. "
-            f"{nick:<{max_nick_len}}  "
-            f"{points:<{max_points_len}}  "
-            f"${payout:.2f}"
+    high_players = players[:10]
+    if high_players:  # Проверка на пустоту
+        # Рассчитываем максимальную длину ника и очков
+        max_nick_len = max(
+            len(p["nick_name"]) if p["nick_name"] not in my_nicks else len(p["nick_name"]) + 2
+            for p in high_players
         )
-        lines.append(line)
+        max_points_len = max(len(str(p["points"])) for p in high_players)
+    else:
+        max_nick_len = 0
+        max_points_len = 0
 
-    lines.append("")  # Отступ между топ-листами
-
-    # Low leaderboard (TOP 15)
-    lines.append("🥈 Low leaderboard (TOP 15)")
-    lines.append("-" * 40)
-
-    # Рассчитываем максимальную длину ника и очков для Low leaderboard
-    max_nick_len = max(
-        len(p["nick_name"]) if p["nick_name"] not in my_nicks else len(p["nick_name"]) + 2
-        for p in players[10:25]
-    )
-    max_points_len = max(len(str(p["points"])) for p in players[10:25])
-
-    for p in players[10:25]:
+    for p in high_players:
         place = p["place"]
         payout = round(payout_data.get(place, 0), 2)
         nick = p["nick_name"]
@@ -262,15 +228,66 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
                 nick = f"@{nick}"
 
         # Формируем строку с выравниванием
-        line = (
-            f"{place:>2}. "
-            f"{nick:<{max_nick_len}}  "
-            f"{points:<{max_points_len}}  "
-            f"${payout:.2f}"
+        if max_nick_len > 0 and max_points_len > 0:
+            line = (
+                f"{place:>2}. "
+                f"{nick:<{max_nick_len}}  "
+                f"{points:<{max_points_len}}  "
+                f"${payout:.2f}"
+            )
+        else:
+            line = f"{place:>2}. {nick}  {points}  ${payout:.2f}"
+        lines.append(line)
+
+    lines.append("")  # Отступ между топ-листами
+
+    # Low leaderboard (TOP 15)
+    lines.append("🥈 Low leaderboard (TOP 15)")
+    lines.append("-" * 40)
+
+    low_players = players[10:25]
+    if low_players:  # Проверка на пустоту
+        # Рассчитываем максимальную длину ника и очков для Low leaderboard
+        max_nick_len = max(
+            len(p["nick_name"]) if p["nick_name"] not in my_nicks else len(p["nick_name"]) + 2
+            for p in low_players
         )
+        max_points_len = max(len(str(p["points"])) for p in low_players)
+    else:
+        max_nick_len = 0
+        max_points_len = 0
+
+    for p in low_players:
+        place = p["place"]
+        payout = round(payout_data.get(place, 0), 2)
+        nick = p["nick_name"]
+        points = round(p["points"], 2)
+
+        # Преобразуем ник в @mention, если он в списке my_nicks
+        if nick in my_nicks:
+            member = utils.get(
+                role_color_map["guild"].members,
+                lambda m: m.display_name.lower() == nick.lower() or m.name.lower() == nick.lower()
+            )
+            if member:
+                nick = member.mention
+            else:
+                nick = f"@{nick}"
+
+        # Формируем строку с выравниванием
+        if max_nick_len > 0 and max_points_len > 0:
+            line = (
+                f"{place:>2}. "
+                f"{nick:<{max_nick_len}}  "
+                f"{points:<{max_points_len}}  "
+                f"${payout:.2f}"
+            )
+        else:
+            line = f"{place:>2}. {nick}  {points}  ${payout:.2f}"
         lines.append(line)
 
     return "\n".join(lines)
+
 
 
 
@@ -434,6 +451,12 @@ async def colored_leaderboard(ctx):
     high = get_leaderboard("high-4hr")
     low = get_leaderboard("low-4hr")
 
+    # Логируем отсутствие данных
+    if not high:
+        logger.warning("High leaderboard returned no data")
+    if not low:
+        logger.warning("Low leaderboard returned no data")
+
     # Формируем топ-10 для High leaderboard
     for i, player in enumerate(high, start=1):
         player["place"] = i
@@ -450,7 +473,7 @@ async def colored_leaderboard(ctx):
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
 
-    # Создаём Embed с сохранением структуры
+    # Создаём Embed
     embed = Embed(
         title="🏆 Лидерборд CoinPoker",
         colour=Colour.from_rgb(30, 144, 255),
@@ -461,23 +484,31 @@ async def colored_leaderboard(ctx):
         # Формируем карту цветов ролей
         role_color_map = {"guild": ctx.guild}
 
-        # Формируем текст для High leaderboard с упоминаниями ролей
-        high_text = format_leaderboard_with_roles(
-            new_high, my_nicks, time_slot, "high_leaderboard", role_color_map
-        )
+        # Формируем текст для High leaderboard
+        if new_high:
+            high_text = format_leaderboard_with_roles(
+                new_high, my_nicks, time_slot, "high_leaderboard", role_color_map
+            )
+        else:
+            high_text = "(нет данных)"
+
         embed.add_field(
             name="🏆 High leaderboard (TOP 10)",
-            value=high_text if high_text else "(нет данных)",
+            value=high_text,
             inline=False
         )
 
-        # Формируем текст для Low leaderboard с упоминаниями ролей
-        low_text = format_leaderboard_with_roles(
-            new_low, my_nicks, time_slot, "low_leaderboard", role_color_map
-        )
+        # Формируем текст для Low leaderboard
+        if new_low:
+            low_text = format_leaderboard_with_roles(
+                new_low, my_nicks, time_slot, "low_leaderboard", role_color_map
+            )
+        else:
+            low_text = "(нет данных)"
+
         embed.add_field(
             name="🥈 Low leaderboard (TOP 15)",
-            value=low_text if low_text else "(нет данных)",
+            value=low_text,
             inline=False
         )
 
