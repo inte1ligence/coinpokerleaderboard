@@ -273,7 +273,7 @@ async def leaderboard(ctx):
         embed.add_field(
             name="🏆 High leaderboard (TOP 10)",
             value=high_text or "```\n(нет данных)\n```",
-            inline=            inline=False
+            inline=False
         )
 
         # Low leaderboard (TOP 15)
