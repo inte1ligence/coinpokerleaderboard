@@ -69,7 +69,7 @@ def get_leaderboard(board_type):
     return []
 
 
-def format_leaderboard(title, players):
+def format_leaderboard(title, players, my_nicks):
     if not players:
         return f"{title}\n(нет данных)\n"
 
@@ -77,14 +77,17 @@ def format_leaderboard(title, players):
     max_points_len = max(len(str(p["points"])) for p in players)
 
     lines = [title]
-    for i, p in enumerate(players, 1):
-        nick = p["nick_name"]
-        points = str(p["points"])
-
-        lines.append(
-            f"{i:>2}. {nick:<{max_nick_len}}  {points:<{max_points_len}}"
+    for p in players:
+        line = (
+            f"{p['place']:>2}. "
+            f"{p['nick_name']:<{max_nick_len}}  "
+            f"{p['points']:<{max_points_len}}"
         )
 
+        if p["nick_name"] in my_nicks:
+            line = f"**{line}**"
+
+        lines.append(line)
     return "\n" + "\n".join(lines) + "\n"
 
 @bot.event
@@ -117,13 +120,31 @@ async def on_ready():
 
 @bot.command(name="l")
 async def leaderboard(ctx):
-    high = get_leaderboard("high-4hr")[:10]
-    low = get_leaderboard("low-4hr")[:15]
-
+    my_nicks = ['kokimos', 'wlthmd', 'RedKing', 'yzeles', 'ArkMaKeSoX']
+    high = get_leaderboard("high-4hr")
+    # Добавляем реальное место каждому игроку
+    for i, player in enumerate(high, start=1):
+        player["place"] = i    
+    top10 = high[:10]
+    top10_names = {p["nick_name"] for p in top10}    
+    # Мои игроки вне топа
+    my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]    
+    # Новый high для вывода
+    new_high = top10 + my_outside_top
+    low = get_leaderboard("low-4hr")
+    # Добавляем реальное место каждому игроку
+    for i, player in enumerate(low, start=1):
+        player["place"] = i    
+    top15 = low[:15]
+    top15_names = {p["nick_name"] for p in top15}    
+    # Мои игроки вне топа
+    my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]    
+    # Новый high для вывода
+    new_low = top15 + my_outside_top
     msg = ""
-    msg += format_leaderboard("🏆 High leaderboard (TOP 10)", high)
+    msg += format_leaderboard("🏆 High leaderboard (TOP 10)", new_high, my_nicks)
     msg += "\n"
-    msg += format_leaderboard("🥈 Low leaderboard (TOP 15)", low)
+    msg += format_leaderboard("🥈 Low leaderboard (TOP 15)", new_low, my_nicks)
 
     await ctx.send(msg)
 
