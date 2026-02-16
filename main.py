@@ -198,6 +198,15 @@ async def on_ready():
     else:
         logger.warning("Повторное подключение — игнорирую.")
 
+@bot.command(name="debug")
+async def debug(ctx):
+    date_str, time_slot = get_utc_date_time_slot()
+    await ctx.send(
+        f"**Текущие параметры запроса:**\n"
+        f"- Дата: `{date_str}`\n"
+        f"- Тайм-слот: `{time_slot}`\n"
+        f"- UTC время: `{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}`"
+    )
 
 @bot.command(name="test_api")
 async def test_api(ctx):
