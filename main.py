@@ -13,6 +13,7 @@ from typing import List, Dict, Optional
 import os
 import logging
 import sys
+import math
 
 
 
@@ -189,43 +190,68 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         return None
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    
-    # Фиксированные ширины колонок
-    COL_PLACE = 4   # для номера места (" 1. ")
-    COL_NICK = 20   # для ника (ровно 20 символов)
-    COL_POINTS = 8  # для очков (с запасом)
-    COL_PAYOUT = 6  # для выплаты
 
-    total_width = COL_PLACE + COL_NICK + COL_POINTS + COL_PAYOUT + 3  # +3 — разделители "│"
-    hline = "─" * total_width
+    lines = []
 
-    # Шапка таблицы
-    header = (
-        f"{'№':<{COL_PLACE}}│{'Игрок':<{COL_NICK}}│{'Очки':>{COL_POINTS}}│{'Выплата':>{COL_PAYOUT}}"
-    )
-    lines = [header, hline]
+    # Заголовок
+    lines.append("🏆 Лидерборд CoinPoker")
+    lines.append("")  # Отступ
 
-    for p in players:
+    # High leaderboard
+    lines.append("🏆 High leaderboard (TOP 10)")
+    lines.append("-".ljust(40, "-"))
+    for p in players[:10]:  # TOP 10
         place = p["place"]
-        payout = payout_data.get(place, 0)
+        payout = round(payout_data.get(place, 0), 2)  # Округление до 2 знаков
         nick = p["nick_name"]
+        points = round(p["points"], 2)  # Округление до 2 знаков
 
-        # Выделяем ники из my_nicks цветом (жирным)
+        # Цветное выделение и эмодзи для ников из my_nicks
         if nick in my_nicks:
-            nick = f"**{nick}**"
-        
-        # Формируем строку с выравниванием
-        line_parts = [
-            f"{place:>{COL_PLACE-2}}. ",  # Номер места с точкой
-            f"{nick:<{COL_NICK}}",         # Ник по левому краю (20 символов)
-            f"{p['points']:>{COL_POINTS}}", # Очки по правому краю
-            f"${payout:>{COL_PAYOUT-1}}" if payout else "$0"  # Выплата с $
-        ]
-        line = "│".join(line_parts)
+            nick = f"**{nick}😊**"
+
+        # Подсветка выплат
+        if payout >= 100:
+            payout_str = f"**${payout:.2f}✨**"  # Зелёный с искрой для крупных выплат
+        elif payout >= 50:
+            payout_str = f"**${payout:.2f}**"  # Жёлтый для средних
+        else:
+            payout_str = f"${payout:.2f}"  # Серый для малых
+
+        line = f"{place}. {nick} | {points} pts | {payout_str}"
         lines.append(line)
 
-    # Обернём в моноширинный блок для Discord
-    return "```\n" + "\n".join(lines) + "\n```"
+    lines.append("")  # Отступ между таблицами
+
+    # Low leaderboard
+    lines.append("🥈 Low leaderboard (TOP 15)")
+    lines.append("-".ljust(40, "-"))
+    for p in players[10:25]:  # TOP 15 из оставшихся
+        place = p["place"]
+        payout = round(payout_data.get(place, 0), 2)  # Округление до 2 знаков
+        nick = p["nick_name"]
+        points = round(p["points"], 2)  # Округление до 2 знаков
+
+        # Цветное выделение и эмодзи для ников из my_nicks
+        if nick in my_nicks:
+            nick = f"**{nick}😊**"
+
+        # Подсветка выплат
+        if payout >= 100:
+            payout_str = f"**${payout:.2f}✨**"
+        elif payout >= 50:
+            payout_str = f"**${payout:.2f}**"
+        else:
+            payout_str = f"${payout:.2f}"
+
+        line = f"{place}. {nick} | {points} pts | {payout_str}"
+        lines.append(line)
+
+    # Футер
+    lines.append("")
+    lines.append("⭐ — ваши участники (выделены жирным с 😊)")
+
+    return "\n".join(lines)
 
 
 
@@ -347,7 +373,6 @@ async def leaderboard(ctx):
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
 
-
     # Создаём Embed
     embed = Embed(
         title="🏆 Лидерборд CoinPoker",
@@ -377,7 +402,7 @@ async def leaderboard(ctx):
         )
 
         if my_nicks:
-            embed.set_footer(text="⭐ — ваши участники (выделены цветом роли)")
+            embed.set_footer(text="⭐ — ваши участники (выделены жирным с 😊)")
 
     except Exception as e:
         logger.error(f"Ошибка при формировании Embed: {e}")
@@ -385,6 +410,7 @@ async def leaderboard(ctx):
         return
 
     await ctx.send(embed=embed)
+
 
 
 
