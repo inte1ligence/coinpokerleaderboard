@@ -225,12 +225,13 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
             f"{place:>{COL_PLACE-2}}. ",  # Номер места с точкой (" 1. ")
             f"{nick:<{COL_NICK}}",          # Ник (по левому краю, ровно 20 символов)
             f"{p['points']:>6}",          # Очки (по правому краю)
-            f"${payout:>7}" if payout else "$0!  # Выплата с $ (по правому краю)
+            f"${payout:>7}" if payout else "$0"  # ВЫПЛАТА: исправлена кавычка!
         ]
         line = "│".join(line_parts)
         lines.append(line)
 
     return "```\n" + "\n".join(lines) + "\n```"
+
 
 
 @bot.event
