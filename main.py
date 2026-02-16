@@ -273,15 +273,16 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
         place = p["place"]
         payout = payout_data.get(place, 0)  # 0, если выплаты нет
 
-        # Формируем ник: добавляем ⭐ для моих ников
+        # Формируем ник: добавляем '*' для моих ников (безопасная замена эмодзи)
         nick_display = p["nick_name"]
         if p["nick_name"] in my_nicks:
-            nick_display = f!⭐ {nick_display}"
+            nick_display = f"* {nick_display}"  # ← Безопасный символ вместо эмодзи
+
 
         # Собираем строку
         line = (
             f"{place:>2}. "
-            f"{nick_display:<{max_nick_len + 2}}  "  # +2 на случай, если добавили "⭐ "
+            f"{nick_display:<{max_nick_len + 2}}  "  # +2 на случай, если добавили "* "
             f"{p['points']:<{max_points_len}}  "
             f"${payout}"
         )
@@ -293,6 +294,7 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
         lines.append(line)
 
     return "\n".join(lines) + "\n"
+
 
 @bot.event
 async def on_command_error(ctx, error):
