@@ -297,7 +297,7 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
         lines.append(line)
 
-    return "\n".join(lines) + "\n"
+    return "```\n" + "\n".join(lines) + "\n```"
 
 
 
@@ -361,6 +361,7 @@ async def leaderboard(ctx):
 
     # Формируем сообщение с выплатами и эмоджи
     msg = ""
+    msg = "```"
     msg += format_leaderboard(
         "🏆 High leaderboard (TOP 10)",
         new_high,
@@ -368,6 +369,8 @@ async def leaderboard(ctx):
         time_slot=time_slot,
         board_type="high_leaderboard"
     )
+    msg = "```"
+    msg = "```"
     msg += format_leaderboard(
         "🥈 Low leaderboard (TOP 15)",
         new_low,
@@ -375,6 +378,7 @@ async def leaderboard(ctx):
         time_slot=time_slot,
         board_type="low_leaderboard"
     )
+    msg = "```"
 
     # Пояснение в конце (только если есть мои ники)
     if my_nicks:
