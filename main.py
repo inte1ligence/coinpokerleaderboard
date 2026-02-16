@@ -88,7 +88,7 @@ def format_leaderboard(title, players, my_nicks):
             line = f"**{line}**"
 
         lines.append(line)
-    return "\n" + "\n".join(lines) + "\n"
+    return "\n".join(lines) + "\n"
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -142,8 +142,7 @@ async def leaderboard(ctx):
     # Новый high для вывода
     new_low = top15 + my_outside_top
     msg = ""
-    msg += format_leaderboard("🏆 High leaderboard (TOP 10)", new_high, my_nicks)
-    msg += "\n"
+    msg += format_leaderboard("🏆 High leaderboard (TOP 10)", new_high, my_nicks)   
     msg += format_leaderboard("🥈 Low leaderboard (TOP 15)", new_low, my_nicks)
 
     await ctx.send(msg)
