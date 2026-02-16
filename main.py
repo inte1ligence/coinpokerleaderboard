@@ -1,12 +1,19 @@
 import discord
 from discord.ext import commands
-from discord import Embed, Colour, utils  # Важные дополнения!
+from discord import (
+    Embed,
+    Colour,
+    utils,
+    Role
+)
+
 import requests
 from datetime import datetime, timezone
+from typing import List, Dict, Optional
 import os
 import logging
 import sys
-import time
+
 
 
 print(sys.version)
