@@ -15,9 +15,12 @@ import logging
 import sys
 import math
 
+
+
 print(sys.version)
 print("Окружение:", os.environ)
 print("MY_NICKNAMES:", os.getenv("MY_NICKNAMES"))
+
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -30,8 +33,7 @@ intents.messages = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
-# Исправлен URL: добавлено "t" в "https"
-COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"
+COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"  # ← Исправьте на "https://..."
 
 payouts = {
     "00-04": {
@@ -91,7 +93,7 @@ payouts = {
 }
 
 def get_utc_date_time_slot():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)  # вместо utcnow()
     date_str = now.strftime("%Y-%m-%d")
     start = (now.hour // 4) * 4
     time_slot = f"{start:02d}-{(start + 4):02d}"
@@ -100,10 +102,12 @@ def get_utc_date_time_slot():
 def get_leaderboard(board_type_api):
     date_str, time_slot = get_utc_date_time_slot()
 
+    # Сопоставление типов для API и payouts
     board_type_payout = {
         "high-4hr": "high_leaderboard",
         "low-4hr": "low_leaderboard"
     }.get(board_type_api, board_type_api)
+
 
     data = {
         "action": "get_current_leaderboard_ajax",
@@ -117,7 +121,6 @@ def get_leaderboard(board_type_api):
         try:
             r = requests.post(COINPOKER_URL, data=data, timeout=20)
 
-            # Проверка размера ответа
             if len(r.content) > 1_000_000:
                 logger.error("Ответ API слишком большой (>1 МБ)")
                 return []
@@ -140,6 +143,48 @@ def get_leaderboard(board_type_api):
     return []
 
 
+def format_leaderboard(title, players, my_nicks, time_slot, board_type):
+    if not players:
+        return f"{title}\n(нет данных)\n"
+
+    payout_data = payouts.get(time_slot, {}).get(board_type, {})
+
+    # Считаем максимальную длину ника С УЧЁТОМ "* "
+    max_nick_len = 0
+    for p in players:
+        nick = p["nick_name"]
+        if nick in my_nicks:
+            nick = f"* {nick}"
+        max_nick_len = max(max_nick_len, len(nick))
+
+    max_points_len = max(len(str(p["points"])) for p in players)
+
+
+    lines = [title]
+
+    for p in players:
+        place = p["place"]
+        payout = payout_data.get(place, 0)
+
+        nick_display = p["nick_name"]
+        is_my = nick_display in my_nicks
+        if is_my:
+            nick_display = f"* {nick_display}"
+
+        line = (
+            f"{place:>2}. "
+            f"{nick_display:<{max_nick_len}}  "
+            f"{p['points']:<{max_points_len}}  "
+            f"${payout}"
+        )
+
+        if is_my:
+            line = f"**{line}**"
+
+        lines.append(line)
+
+    return "\n".join(lines)
+
 def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role_color_map):
     if not players:
         return None
@@ -155,7 +200,6 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
     lines.append("🥇 High leaderboard (TOP 10)")
     lines.append("-".ljust(40, "-"))
     
-    
     for p in players[:10]:
         place = p["place"]
         payout = round(payout_data.get(place, 0), 2)
@@ -165,8 +209,8 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
         # Цветное выделение ников через упоминания ролей
         if nick in my_nicks:
             # Ищем участника по нику
-            member = utils.get(role_color_map["guild"].members, nickname=nick.lower()) or \
-                     utils.get(role_color_map["guild"].members, display_name=nick.lower())
+            member = utils.get(role_color_map.guild.members, nickname=nick.lower()) or \
+                     utils.get(role_color_map.guild.members, display_name=nick.lower())
             if member:
                 nick = member.mention  # Автоматически окрасится в цвет роли
             else:
@@ -181,7 +225,6 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
             payout_str = f"**🟨${payout:.2f}**"
         else:
             payout_str = f"**🟥${payout:.2f}**"
-
 
         line = f"{place}. {nick} | {points} pts | {payout_str}"
         lines.append(line)
@@ -199,8 +242,8 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
 
         # Цветное выделение ников через упоминания ролей
         if nick in my_nicks:
-            member = utils.get(role_color_map["guild"].members, nickname=nick.lower()) or \
-                     utils.get(role_color_map["guild"].members, display_name=nick.lower())
+            member = utils.get(role_color_map.guild.members, nickname=nick.lower()) or \
+                     utils.get(role_color_map.guild.members, display_name=nick.lower())
             if member:
                 nick = member.mention
             else:
@@ -222,10 +265,103 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
     lines.append("\n⭐ — ваши участники (автоматически окрашены в цвет их роли)")
     return "\n".join(lines)
 
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        await ctx.send("Команда не найдена. Используйте !help для списка команд.")
+    else:
+        logger.error(f"Ошибка команды: {error}")
+
+@bot.command()
+async def ping(ctx):
+    await ctx.send("Pong! Бот работает.")
+
+@bot.command()
+async def status(ctx):
+    await ctx.send(
+        f"Бот работает!\n"
+        f"Версия Python: {sys.version}\n"
+        f"Запущен: {bot.user.created_at.strftime('%Y-%m-%d %H:%M')}"
+    )
+
+@bot.event
+async def on_ready():
+    if not hasattr(bot, 'started'):
+        bot.started = True
+        logger.info(f"✅ Бот запущен как {bot.user}")
+    else:
+        logger.warning("Повторное подключение — игнорирую.")
+
+@bot.command(name="debug")
+async def debug(ctx):
+    date_str, time_slot = get_utc_date_time_slot()
+    await ctx.send(
+        f"**Текущие параметры запроса:**\n"
+        f"- Дата: `{date_str}`\n"
+        f"- Тайм-слот: `{time_slot}`\n"
+        f"- UTC время: `{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}`"
+    )
+
+@bot.command(name="test_nicks")
+async def test_nicks(ctx):
+    # 1. Получаем список ваших ников из переменной окружения
+    my_nicks_str = os.getenv("MY_NICKNAMES")
+    if not my_nicks_str:
+        return await ctx.send("❌ Переменная окружения MY_NICKNAMES не задана!")
+    
+    my_nicks = [nick.strip().lower() for nick in my_nicks_str.split(",")]
+    await ctx.send(f"Ваши ники (для проверки): {', '.join(my_nicks)}")
+
+    # 2. Получаем данные лидербордов
+    date_str, time_slot = get_utc_date_time_slot()
+    high = get_leaderboard("high-4hr")
+    low = get_leaderboard("low-4hr")
+
+    # Объединяем оба лидерборда в один список игроков
+    all_players = high + low
+    api_nicks = {p["nick_name"].lower() for p in all_players}  # Ники из API (нижний регистр)
+
+    # 3. Проверяем, какие ники найдены
+    found = []
+    not_found = []
+
+    for nick in my_nicks:
+        if nick in api_nicks:
+            found.append(nick)
+        else:
+            not_found.append(nick)
+
+    # 4. Формируем ответ
+    result = "🔎 Результаты проверки ников:\n"
+    
+    if found:
+        result += f"✅ Найдены в лидерборде: {', '.join(found)}\n"
+    else:
+        result += "✅ Ники не найдены в текущем лидерборде.\n"
+    
+    if not_found:
+        result += f"❌ Не найдены: {', '.join(not_found)}"
+    
+    await ctx.send(result)
+
+
+@bot.command(name="test_api")
+async def test_api(ctx):
+    try:
+        r = requests.get("https://coinpoker.com", timeout=10)
+        if r.status_code == 200:
+            await ctx.send("✅ API доступно")
+        else:
+            await ctx.send(f"❌ API вернул код {r.status_code}")
+    except Exception as e:
+        await ctx.send(f"❌ Ошибка подключения: {e}")
+
 @bot.command(name="l", aliases=["д"])
 async def leaderboard(ctx):
     my_nicks_str = os.getenv("MY_NICKNAMES")
     my_nicks = [nick.strip() for nick in my_nicks_str.split(",")] if my_nicks_str else []
+
 
     date_str, time_slot = get_utc_date_time_slot()
 
@@ -240,7 +376,6 @@ async def leaderboard(ctx):
     top10_names = {p["nick_name"] for p in top10}
     my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
     new_high = top10 + my_outside_top
-
 
     # Формируем топ-15 для Low leaderboard
     for i, player in enumerate(low, start=1):
@@ -265,11 +400,6 @@ async def leaderboard(ctx):
         high_text = format_leaderboard_with_roles(
             new_high, my_nicks, time_slot, "high_leaderboard", role_color_map
         )
-        
-        # Проверка на длину текста (максимум 4096 символов на поле)
-        if high_text and len(high_text) > 4000:
-            high_text = high_text[:4000] + "\n... (обрезано)"
-
         embed.add_field(
             name="🏆 High leaderboard (TOP 10)",
             value=high_text or "```\n(нет данных)\n```",
@@ -280,12 +410,6 @@ async def leaderboard(ctx):
         low_text = format_leaderboard_with_roles(
             new_low, my_nicks, time_slot, "low_leaderboard", role_color_map
         )
-
-        # Проверка на длину текста
-        if low_text and len(low_text) > 4000:
-            low_text = low_text[:4000] + "\n... (обрезано)"
-
-
         embed.add_field(
             name="🥈 Low leaderboard (TOP 15)",
             value=low_text or "```\n(нет данных)\n```",
@@ -295,123 +419,16 @@ async def leaderboard(ctx):
         if my_nicks:
             embed.set_footer(text="⭐ — ваши участники автоматически окрашены в цвет их роли")
 
-
     except Exception as e:
         logger.error(f"Ошибка при формировании Embed: {e}")
         await ctx.send("Произошла ошибка при формировании лидерборда.")
         return
 
-    # Проверка общего размера Embed (максимум 6000 символов)
-    total_length = len(embed.title or "") + len(embed.description or "")
-    for field in embed.fields:
-        total_length += len(field.name) + len(field.value)
-    
-
-    if total_length > 6000:
-        await ctx.send("Лидерборд слишком длинный — превышен лимит символов Discord.")
-        return
-
     await ctx.send(embed=embed)
 
 
-@bot.event
-async def on_command_error(ctx, error):
-    if isinstance(error, commands.CommandNotFound):
-        await ctx.send("Команда не найдена. Используйте !help для списка команд.")
-    else:
-        logger.error(f"Ошибка команды: {error}")
-
-@bot.command()
-async def ping(ctx):
-    await ctx.send("Pong! Бот работает.")
 
 
-@bot.command()
-async def status(ctx):
-    await ctx.send(
-        f"Бот работает!\n"
-        f"Версия Python: {sys.version}\n"
-        f"Запущен: {bot.user.created_at.strftime('%Y-%m-%d %H:%M')}"
-    )
-
-@bot.event
-async def on_ready():
-    if not hasattr(bot, 'started'):
-        bot.started = True
-        logger.info(f"✅ Бот запущен как {bot.user}")
-    else:
-        logger.warning("Повторное подключение — игнорирую.")
-
-
-@bot.command(name="debug")
-async def debug(ctx):
-    date_str, time_slot = get_utc_date_time_slot()
-    await ctx.send(
-        f"**Текущие параметры запроса:**\n"
-        f"- Дата: `{date_str}`\n"
-        f"- Тайм-слот: `{time_slot}`\n"
-        f"- UTC время: `{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}`"
-    )
-
-@bot.command(name="test_nicks")
-async def test_nicks(ctx):
-    # 1. Получаем список ваших ников из переменной окружения
-    my_nicks_str = os.getenv("MY_NICKNAMES")
-    if not my_nicks_str:
-        return await ctx.send("❌ Переменная окружения MY_NICKNAMES не задана!")
-
-
-    my_nicks = [nick.strip().lower() for nick in my_nicks_str.split(",")]
-    await ctx.send(f"Ваши ники (для проверки): {', '.join(my_nicks)}")
-
-
-    # 2. Получаем данные лидербордов
-    date_str, time_slot = get_utc_date_time_slot()
-    high = get_leaderboard("high-4hr")
-    low = get_leaderboard("low-4hr")
-
-
-    # Объединяем оба лидерборда в один список игроков
-    all_players = high + low
-    api_nicks = {p["nick_name"].lower() for p in all_players}  # Ники из API (нижний регистр)
-
-
-    # 3. Проверяем, какие ники найдены
-    found = []
-    not_found = []
-
-    for nick in my_nicks:
-        if nick in api_nicks:
-            found.append(nick)
-        else:
-            not_found.append(nick)
-
-    # 4. Формируем ответ
-    result = "🔎 Результаты проверки ников:\n"
-
-
-    if found:
-        result += f"✅ Найдены в лидерборде: {', '.join(found)}\n"
-    else:
-        result += "✅ Ники не найдены в текущем лидерборде.\n"
-
-
-    if not_found:
-        result += f"❌ Не найдены: {', '.join(not_found)}"
-
-
-    await ctx.send(result)
-
-@bot.command(name="test_api")
-async def test_api(ctx):
-    try:
-        r = requests.get("https://coinpoker.com", timeout=10)
-        if r.status_code == 200:
-            await ctx.send("✅ API доступно")
-        else:
-            await ctx.send(f"❌ API вернул код {r.status_code}")
-    except Exception as e:
-        await ctx.send(f"❌ Ошибка подключения: {e}")
 
 # Запуск бота
 if __name__ == "__main__":
@@ -420,3 +437,5 @@ if __name__ == "__main__":
         logger.error("Токен Discord не найден в переменной окружения DISCORD_TOKEN")
         sys.exit(1)
     bot.run(token)
+
+
