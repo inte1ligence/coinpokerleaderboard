@@ -199,24 +199,32 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
     # High leaderboard с золотой медалью
     lines.append("🥇 High leaderboard (TOP 10)")
     lines.append("-".ljust(40, "-"))
+    
     for p in players[:10]:
         place = p["place"]
         payout = round(payout_data.get(place, 0), 2)
         nick = p["nick_name"]
         points = round(p["points"], 2)
 
-        # Цветное выделение ников по роли
+        # Цветное выделение ников через упоминания ролей
         if nick in my_nicks:
-            hex_color = role_color_map.get(nick, '0000ff')  # fallback цвет
-            nick = f"<#{hex_color}>{nick}😊</#{hex_color}>"
-
-        # Подсветка выплат цветом:
-        if payout >= 100:
-            payout_str = f"**🟢${payout:.2f}**"  # Зелёный для ≥100
-        elif 50 <= payout < 100:
-            payout_str = f"**🟨${payout:.2f}**"  # Жёлтый для 50–99.99
+            # Ищем участника по нику
+            member = utils.get(role_color_map.guild.members, nickname=nick.lower()) or \
+                     utils.get(role_color_map.guild.members, display_name=nick.lower())
+            if member:
+                nick = member.mention  # Автоматически окрасится в цвет роли
+            else:
+                nick = f"@{nick}"  # Если не найден — просто упоминание
         else:
-            payout_str = f"**🟥${payout:.2f}**"  # Оранжевый для <50
+            nick = nick  # Чужие ники без изменений
+
+        # Подсветка выплат цветом
+        if payout >= 100:
+            payout_str = f"**🟢${payout:.2f}**"
+        elif 50 <= payout < 100:
+            payout_str = f"**🟨${payout:.2f}**"
+        else:
+            payout_str = f"**🟥${payout:.2f}**"
 
         line = f"{place}. {nick} | {points} pts | {payout_str}"
         lines.append(line)
@@ -232,10 +240,16 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
         nick = p["nick_name"]
         points = round(p["points"], 2)
 
-        # Цветное выделение ников по роли
+        # Цветное выделение ников через упоминания ролей
         if nick in my_nicks:
-            hex_color = role_color_map.get(nick, '0000ff')
-            nick = f"<#{hex_color}>{nick}😊</#{hex_color}>"
+            member = utils.get(role_color_map.guild.members, nickname=nick.lower()) or \
+                     utils.get(role_color_map.guild.members, display_name=nick.lower())
+            if member:
+                nick = member.mention
+            else:
+                nick = f"@{nick}"
+        else:
+            nick = nick
 
         # Подсветка выплат цветом
         if payout >= 100:
@@ -248,7 +262,7 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
         line = f"{place}. {nick} | {points} pts | {payout_str}"
         lines.append(line)
 
-    lines.append("\n⭐ — ваши участники (выделены цветом роли с 😊)")
+    lines.append("\n⭐ — ваши участники (автоматически окрашены в цвет их роли)")
     return "\n".join(lines)
 
 
@@ -348,6 +362,7 @@ async def leaderboard(ctx):
     my_nicks_str = os.getenv("MY_NICKNAMES")
     my_nicks = [nick.strip() for nick in my_nicks_str.split(",")] if my_nicks_str else []
 
+
     date_str, time_slot = get_utc_date_time_slot()
 
     # Получаем данные лидербордов
@@ -378,9 +393,12 @@ async def leaderboard(ctx):
     )
 
     try:
+        # Формируем карту цветов ролей
+        role_color_map = {"guild": ctx.guild}  # Передаём guild для поиска участников
+
         # High leaderboard (TOP 10)
         high_text = format_leaderboard_with_roles(
-            new_high, my_nicks, time_slot, "high_leaderboard", ctx.guild
+            new_high, my_nicks, time_slot, "high_leaderboard", role_color_map
         )
         embed.add_field(
             name="🏆 High leaderboard (TOP 10)",
@@ -390,7 +408,7 @@ async def leaderboard(ctx):
 
         # Low leaderboard (TOP 15)
         low_text = format_leaderboard_with_roles(
-            new_low, my_nicks, time_slot, "low_leaderboard", ctx.guild
+            new_low, my_nicks, time_slot, "low_leaderboard", role_color_map
         )
         embed.add_field(
             name="🥈 Low leaderboard (TOP 15)",
@@ -399,7 +417,7 @@ async def leaderboard(ctx):
         )
 
         if my_nicks:
-            embed.set_footer(text="⭐ — ваши участники (выделены жирным с 😊)")
+            embed.set_footer(text="⭐ — ваши участники автоматически окрашены в цвет их роли")
 
     except Exception as e:
         logger.error(f"Ошибка при формировании Embed: {e}")
@@ -407,6 +425,7 @@ async def leaderboard(ctx):
         return
 
     await ctx.send(embed=embed)
+
 
 
 
