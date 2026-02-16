@@ -20,6 +20,195 @@ intents.messages = True
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 
 COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"
+payouts = {
+    "00-04": {
+        "high_leaderboard": {
+            1: 275,
+            2: 185,
+            3: 150,
+            4: 130,
+            5: 115,
+            6: 100,
+            7: 85,
+            8: 75,
+            9: 70,
+            10: 65
+        },
+        "low_leaderboard": {
+            1: 95,
+            2: 60,
+            3: 45,
+            4: 30,
+            5: 25,
+            6: 25,
+            7: 20,
+            8: 20,
+            9: 15,
+            10: 15,
+            11: 5,
+            12: 5,
+            13: 5,
+            14: 5,
+            15: 5
+        }
+    },
+    "04-08": {
+        "high_leaderboard": {
+            1: 275,
+            2: 185,
+            3: 150,
+            4: 130,
+            5: 115,
+            6: 100,
+            7: 85,
+            8: 75,
+            9: 70,
+            10: 65
+        },
+        "low_leaderboard": {
+            1: 95,
+            2: 60,
+            3: 45,
+            4: 30,
+            5: 25,
+            6: 25,
+            7: 20,
+            8: 20,
+            9: 15,
+            10: 15,
+            11: 5,
+            12: 5,
+            13: 5,
+            14: 5,
+            15: 5
+        }
+    },
+    "08-12": {
+        "high_leaderboard": {
+            1: 375,
+            2: 250,
+            3: 185,
+            4: 155,
+            5: 140,
+            6: 125,
+            7: 110,
+            8: 100,
+            9: 95,
+            10: 90
+        },
+        "low_leaderboard": {
+            1: 125,
+            2: 85,
+            3: 60,
+            4: 50,
+            5: 45,
+            6: 40,
+            7: 30,
+            8: 25,
+            9: 25,
+            10: 20,
+            11: 20,
+            12: 15,
+            13: 15,
+            14: 5,
+            15: 5
+        }
+    },
+    "12-16": {
+        "high_leaderboard": {
+            1: 500,
+            2: 325,
+            3: 250,
+            4: 220,
+            5: 200,
+            6: 180,
+            7: 165,
+            8: 150,
+            9: 135,
+            10: 125
+        },
+        "low_leaderboard": {
+            1: 185,
+            2: 115,
+            3: 80,
+            4: 65,
+            5: 50,
+            6: 45,
+            7: 40,
+            8: 30,
+            9: 30,
+            10: 25,
+            11: 25,
+            12: 20,
+            13: 20,
+            14: 10,
+            15: 10
+        }
+    },
+    "16-20": {
+        "high_leaderboard": {
+            1: 500,
+            2: 325,
+            3: 250,
+            4: 220,
+            5: 200,
+            6: 180,
+            7: 165,
+            8: 150,
+            9: 135,
+            10: 125
+        },
+        "low_leaderboard": {
+            1: 185,
+            2: 115,
+            3: 80,
+            4: 65,
+            5: 50,
+            6: 45,
+            7: 40,
+            8: 30,
+            9: 30,
+            10: 25,
+            11: 25,
+            12: 20,
+            13: 20,
+            14: 10,
+            15: 10
+        }
+    },
+    "20-00": {
+        "high_leaderboard": {
+            1: 500,
+            2: 325,
+            3: 250,
+            4: 220,
+            5: 200,
+            6: 180,
+            7: 165,
+            8: 150,
+            9: 135,
+            10: 125
+        },
+        "low_leaderboard": {
+            1: 185,
+            2: 115,
+            3: 80,
+            4: 65,
+            5: 50,
+            6: 45,
+            7: 40,
+            8: 30,
+            9: 30,
+            10: 25,
+            11: 25,
+            12: 20,
+            13: 20,
+            14: 10,
+            15: 10
+        }
+    }
+}
+
 
 def get_utc_date_time_slot():
     now = datetime.now(timezone.utc)  # вместо utcnow()
@@ -69,26 +258,35 @@ def get_leaderboard(board_type):
     return []
 
 
-def format_leaderboard(title, players, my_nicks):
+def format_leaderboard(title, players, my_nicks, time_slot, board_type):
     if not players:
         return f"{title}\n(нет данных)\n"
+
+    # Получаем выплаты для текущего слота и типа лидерборда
+    payout_data = payouts.get(time_slot, {}).get(board_type, {})
 
     max_nick_len = max(len(p["nick_name"]) for p in players)
     max_points_len = max(len(str(p["points"])) for p in players)
 
     lines = [title]
     for p in players:
+        place = p["place"]
+        payout = payout_data.get(place, 0)  # 0, если выплаты нет
+
         line = (
-            f"{p['place']:>2}. "
+            f"{place:>2}. "
             f"{p['nick_name']:<{max_nick_len}}  "
-            f"{p['points']:<{max_points_len}}"
+            f"{p['points']:<{max_points_len}}  "
+            f"${payout}"
         )
 
         if p["nick_name"] in my_nicks:
             line = f"**{line}**"
 
         lines.append(line)
+
     return "\n".join(lines) + "\n"
+
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -121,31 +319,47 @@ async def on_ready():
 @bot.command(name="l")
 async def leaderboard(ctx):
     my_nicks = ['kokimos', 'wlthmd', 'RedKing', 'yzeles', 'ArkMaKeSoX']
+    
+    # Получаем текущий временной слот
+    date_str, time_slot = get_utc_date_time_slot()
+
+    # High leaderboard
     high = get_leaderboard("high-4hr")
-    # Добавляем реальное место каждому игроку
     for i, player in enumerate(high, start=1):
-        player["place"] = i    
+        player["place"] = i
     top10 = high[:10]
-    top10_names = {p["nick_name"] for p in top10}    
-    # Мои игроки вне топа
-    my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]    
-    # Новый high для вывода
+    top10_names = {p["nick_name"] for p in top10}
+    my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
     new_high = top10 + my_outside_top
+
+    # Low leaderboard
     low = get_leaderboard("low-4hr")
-    # Добавляем реальное место каждому игроку
     for i, player in enumerate(low, start=1):
-        player["place"] = i    
+        player["place"] = i
     top15 = low[:15]
-    top15_names = {p["nick_name"] for p in top15}    
-    # Мои игроки вне топа
-    my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]    
-    # Новый high для вывода
+    top15_names = {p["nick_name"] for p in top15}
+    my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
+
+    # Формируем сообщение с выплатами
     msg = ""
-    msg += format_leaderboard("🏆 High leaderboard (TOP 10)", new_high, my_nicks)   
-    msg += format_leaderboard("🥈 Low leaderboard (TOP 15)", new_low, my_nicks)
+    msg += format_leaderboard(
+        "🏆 High leaderboard (TOP 10)",
+        new_high,
+        my_nicks,
+        time_slot=time_slot,
+        board_type="high_leaderboard"
+    )
+    msg += format_leaderboard(
+        "🥈 Low leaderboard (TOP 15)",
+        new_low,
+        my_nicks,
+        time_slot=time_slot,
+        board_type="low_leaderboard"
+    )
 
     await ctx.send(msg)
+
 
 if __name__ == "__main__":
     bot.run(os.getenv("DISCORD_TOKEN"))
