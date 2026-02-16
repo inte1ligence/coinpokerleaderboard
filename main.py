@@ -79,15 +79,10 @@ payouts = {
 }
 
 def get_utc_date_time_slot():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc)  # вместо utcnow()
     date_str = now.strftime("%Y-%m-%d")
     start = (now.hour // 4) * 4
-
-    if start == 20:
-        time_slot = "20-00"
-    else:
-        time_slot = f"{start:02d}-{(start + 4):02d}"
-
+    time_slot = f"{start:02d}-{(start + 4):02d}"
     return date_str, time_slot
 
 def get_leaderboard(board_type_api):
