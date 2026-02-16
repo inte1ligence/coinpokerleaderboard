@@ -211,10 +211,17 @@ payouts = {
 
 
 def get_utc_date_time_slot():
-    now = datetime.now(timezone.utc)  # вместо utcnow()
+    now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y-%m-%d")
     start = (now.hour // 4) * 4
-    time_slot = f"{start:02d}-{(start + 4):02d}"
+
+    # Корректируем для последнего слота (20–00)
+    if start == 20:
+        time_slot = "20-00"
+    else:
+        time_slot = f"{start:02d}-{(start + 4):02d}"
+
+
     return date_str, time_slot
 
 
