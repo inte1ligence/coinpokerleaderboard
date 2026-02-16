@@ -1,21 +1,10 @@
 import discord
 from discord.ext import commands
-from discord import (
-    Embed,
-    Colour,
-    utils,
-    Role
-)
-
 import requests
 from datetime import datetime, timezone
-from typing import List, Dict, Optional
 import os
 import logging
 import sys
-import math
-
-
 
 print(sys.version)
 print("Окружение:", os.environ)
@@ -185,87 +174,6 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
     return "\n".join(lines)
 
-def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role_color_map):
-    if not players:
-        return None
-
-    payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    lines = []
-
-    # Заголовок с кубком
-    lines.append("🏅 Лидерборд CoinPoker")
-    lines.append("")
-
-    # High leaderboard с золотой медалью
-    lines.append("🥇 High leaderboard (TOP 10)")
-    lines.append("-".ljust(40, "-"))
-    
-    for p in players[:10]:
-        place = p["place"]
-        payout = round(payout_data.get(place, 0), 2)
-        nick = p["nick_name"]
-        points = round(p["points"], 2)
-
-        # Цветное выделение ников через упоминания ролей
-        if nick in my_nicks:
-            # Ищем участника по нику
-            member = utils.get(role_color_map.guild.members, nickname=nick.lower()) or \
-                     utils.get(role_color_map.guild.members, display_name=nick.lower())
-            if member:
-                nick = member.mention  # Автоматически окрасится в цвет роли
-            else:
-                nick = f"@{nick}"  # Если не найден — просто упоминание
-        else:
-            nick = nick  # Чужие ники без изменений
-
-        # Подсветка выплат цветом
-        if payout >= 100:
-            payout_str = f"**🟢${payout:.2f}**"
-        elif 50 <= payout < 100:
-            payout_str = f"**🟨${payout:.2f}**"
-        else:
-            payout_str = f"**🟥${payout:.2f}**"
-
-        line = f"{place}. {nick} | {points} pts | {payout_str}"
-        lines.append(line)
-
-    lines.append("")
-
-    # Low leaderboard с серебряной медалью
-    lines.append("🥈 Low leaderboard (TOP 15)")
-    lines.append("-".ljust(40, "-"))
-    for p in players[10:25]:
-        place = p["place"]
-        payout = round(payout_data.get(place, 0), 2)
-        nick = p["nick_name"]
-        points = round(p["points"], 2)
-
-        # Цветное выделение ников через упоминания ролей
-        if nick in my_nicks:
-            member = utils.get(role_color_map.guild.members, nickname=nick.lower()) or \
-                     utils.get(role_color_map.guild.members, display_name=nick.lower())
-            if member:
-                nick = member.mention
-            else:
-                nick = f"@{nick}"
-        else:
-            nick = nick
-
-        # Подсветка выплат цветом
-        if payout >= 100:
-            payout_str = f"**🟢${payout:.2f}**"
-        elif 50 <= payout < 100:
-            payout_str = f"**🟨${payout:.2f}**"
-        else:
-            payout_str = f"**🟥${payout:.2f}**"
-
-        line = f"{place}. {nick} | {points} pts | {payout_str}"
-        lines.append(line)
-
-    lines.append("\n⭐ — ваши участники (автоматически окрашены в цвет их роли)")
-    return "\n".join(lines)
-
-
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
@@ -357,19 +265,20 @@ async def test_api(ctx):
     except Exception as e:
         await ctx.send(f"❌ Ошибка подключения: {e}")
 
+
+
 @bot.command(name="l", aliases=["д"])
 async def leaderboard(ctx):
     my_nicks_str = os.getenv("MY_NICKNAMES")
-    my_nicks = [nick.strip() for nick in my_nicks_str.split(",")] if my_nicks_str else []
-
+    if my_nicks_str:
+        my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
+    else:
+        my_nicks = []
 
     date_str, time_slot = get_utc_date_time_slot()
 
-    # Получаем данные лидербордов
+    # High leaderboard
     high = get_leaderboard("high-4hr")
-    low = get_leaderboard("low-4hr")
-
-    # Формируем топ-10 для High leaderboard
     for i, player in enumerate(high, start=1):
         player["place"] = i
     top10 = high[:10]
@@ -377,7 +286,8 @@ async def leaderboard(ctx):
     my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
     new_high = top10 + my_outside_top
 
-    # Формируем топ-15 для Low leaderboard
+    # Low leaderboard
+    low = get_leaderboard("low-4hr")
     for i, player in enumerate(low, start=1):
         player["place"] = i
     top15 = low[:15]
@@ -385,50 +295,33 @@ async def leaderboard(ctx):
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
 
-    # Создаём Embed
-    embed = Embed(
-        title="🏆 Лидерборд CoinPoker",
-        colour=Colour.from_rgb(30, 144, 255),
-        timestamp=datetime.now(timezone.utc)
+
+    msg = "```\n"
+    msg += format_leaderboard(
+        "🏆 High leaderboard (TOP 10)",
+        new_high,
+        my_nicks,
+        time_slot=time_slot,
+        board_type="high_leaderboard"
     )
+    msg += "\n"
+    msg += format_leaderboard(
+        "🥈 Low leaderboard (TOP 15)",
+        new_low,
+        my_nicks,
+        time_slot=time_slot,
+        board_type="low_leaderboard"
+    )
+    msg += "```"
 
-    try:
-        # Формируем карту цветов ролей
-        role_color_map = {"guild": ctx.guild}  # Передаём guild для поиска участников
-
-        # High leaderboard (TOP 10)
-        high_text = format_leaderboard_with_roles(
-            new_high, my_nicks, time_slot, "high_leaderboard", role_color_map
-        )
-        embed.add_field(
-            name="🏆 High leaderboard (TOP 10)",
-            value=high_text or "```\n(нет данных)\n```",
-            inline=False
-        )
-
-        # Low leaderboard (TOP 15)
-        low_text = format_leaderboard_with_roles(
-            new_low, my_nicks, time_slot, "low_leaderboard", role_color_map
-        )
-        embed.add_field(
-            name="🥈 Low leaderboard (TOP 15)",
-            value=low_text or "```\n(нет данных)\n```",
-            inline=False
+    if my_nicks:
+        msg += (
+            "\n⭐ — ваши участники\n"
+            "💡 Чтобы выделить цветом ник на сервере: создайте роль с цветом и назначьте её участнику."
         )
 
-        if my_nicks:
-            embed.set_footer(text="⭐ — ваши участники автоматически окрашены в цвет их роли")
-
-    except Exception as e:
-        logger.error(f"Ошибка при формировании Embed: {e}")
-        await ctx.send("Произошла ошибка при формировании лидерборда.")
-        return
-
-    await ctx.send(embed=embed)
-
-
-
-
+    await ctx.send(msg)
+    
 
 # Запуск бота
 if __name__ == "__main__":
