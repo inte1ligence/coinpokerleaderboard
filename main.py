@@ -185,74 +185,71 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
     return "\n".join(lines)
 
-def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
+def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role_color_map):
     if not players:
         return None
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
-
     lines = []
 
-    # Заголовок
-    lines.append("🏆 Лидерборд CoinPoker")
-    lines.append("")  # Отступ
+    # Заголовок с кубком
+    lines.append("🏅 Лидерборд CoinPoker")
+    lines.append("")
 
-    # High leaderboard
-    lines.append("🏆 High leaderboard (TOP 10)")
+    # High leaderboard с золотой медалью
+    lines.append("🥇 High leaderboard (TOP 10)")
     lines.append("-".ljust(40, "-"))
-    for p in players[:10]:  # TOP 10
+    for p in players[:10]:
         place = p["place"]
-        payout = round(payout_data.get(place, 0), 2)  # Округление до 2 знаков
+        payout = round(payout_data.get(place, 0), 2)
         nick = p["nick_name"]
-        points = round(p["points"], 2)  # Округление до 2 знаков
+        points = round(p["points"], 2)
 
-        # Цветное выделение и эмодзи для ников из my_nicks
+        # Цветное выделение ников по роли
         if nick in my_nicks:
-            nick = f"**{nick}😊**"
+            hex_color = role_color_map.get(nick, '0000ff')  # fallback цвет
+            nick = f"<#{hex_color}>{nick}😊</#{hex_color}>"
 
-        # Подсветка выплат
+        # Подсветка выплат цветом:
         if payout >= 100:
-            payout_str = f"**${payout:.2f}✨**"  # Зелёный с искрой для крупных выплат
-        elif payout >= 50:
-            payout_str = f"**${payout:.2f}**"  # Жёлтый для средних
+            payout_str = f"**🟢${payout:.2f}**"  # Зелёный для ≥100
+        elif 50 <= payout < 100:
+            payout_str = f"**🟨${payout:.2f}**"  # Жёлтый для 50–99.99
         else:
-            payout_str = f"${payout:.2f}"  # Серый для малых
+            payout_str = f"**🟥${payout:.2f}**"  # Оранжевый для <50
 
         line = f"{place}. {nick} | {points} pts | {payout_str}"
         lines.append(line)
 
-    lines.append("")  # Отступ между таблицами
+    lines.append("")
 
-    # Low leaderboard
+    # Low leaderboard с серебряной медалью
     lines.append("🥈 Low leaderboard (TOP 15)")
     lines.append("-".ljust(40, "-"))
-    for p in players[10:25]:  # TOP 15 из оставшихся
+    for p in players[10:25]:
         place = p["place"]
-        payout = round(payout_data.get(place, 0), 2)  # Округление до 2 знаков
+        payout = round(payout_data.get(place, 0), 2)
         nick = p["nick_name"]
-        points = round(p["points"], 2)  # Округление до 2 знаков
+        points = round(p["points"], 2)
 
-        # Цветное выделение и эмодзи для ников из my_nicks
+        # Цветное выделение ников по роли
         if nick in my_nicks:
-            nick = f"**{nick}😊**"
+            hex_color = role_color_map.get(nick, '0000ff')
+            nick = f"<#{hex_color}>{nick}😊</#{hex_color}>"
 
-        # Подсветка выплат
+        # Подсветка выплат цветом
         if payout >= 100:
-            payout_str = f"**${payout:.2f}✨**"
-        elif payout >= 50:
-            payout_str = f"**${payout:.2f}**"
+            payout_str = f"**🟢${payout:.2f}**"
+        elif 50 <= payout < 100:
+            payout_str = f"**🟨${payout:.2f}**"
         else:
-            payout_str = f"${payout:.2f}"
+            payout_str = f"**🟥${payout:.2f}**"
 
         line = f"{place}. {nick} | {points} pts | {payout_str}"
         lines.append(line)
 
-    # Футер
-    lines.append("")
-    lines.append("⭐ — ваши участники (выделены жирным с 😊)")
-
+    lines.append("\n⭐ — ваши участники (выделены цветом роли с 😊)")
     return "\n".join(lines)
-
 
 
 @bot.event
