@@ -1,11 +1,18 @@
 import discord
 from discord.ext import commands
+from discord import (
+    Embed,
+    Colour,
+    utils,
+    Role
+)
+
 import requests
 from datetime import datetime, timezone
+from typing import List, Dict, Optional
 import os
 import logging
 import sys
-from discord import utils
 
 print("Utils доступен:", hasattr(utils, 'get'))  # Должен вывести True
 print(sys.version)
@@ -176,37 +183,51 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
     return "\n".join(lines)
 
-def format_leaderboard_colored(title: str, players: list, my_nicks: list, time_slot: str, board_type: str, guild: discord.Guild) -> str:
+def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role_color_map):
     if not players:
-        return f"{title}\n(нет данных)\n"
+        return None
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    lines = [f"**{title}**"]
+    lines = []
 
-    for p in players:
+    # Заголовок
+    lines.append("🏅 Лидерборд CoinPoker")
+    lines.append("")
+
+    # High leaderboard
+    lines.append("🥇 High leaderboard (TOP 10)")
+    lines.append("-" * 40)
+
+    for p in players[:10]:
         place = p["place"]
+        payout = round(payout_data.get(place, 0), 2)
         nick = p["nick_name"]
         points = round(p["points"], 2)
-        payout = round(payout_data.get(place, 0), 2)
 
-        # Ищем участника по нику или отображаемому имени
-        member = (
-            utils.get(guild.members, nickname=nick) or
-            utils.get(guild.members, display_name=nick)
-        )
+        # Цветное выделение ников через упоминания ролей
+        if nick in my_nicks:
+            member = utils.get(
+                role_color_map["guild"].members,
+                lambda m: m.display_name.lower() == nick.lower() or m.name.lower() == nick.lower()
+            )
+            if member:
+                nick = member.mention  # Автоматически окрасится в цвет роли
+            else:
+                nick = nick  # Если не найден — оставляем как есть
 
-        if member and nick.lower() in [mn.lower() for mn in my_nicks]:
-            # Упоминаем участника — Discord сам окрасит ник в цвет роли
-            nick_display = member.mention
+        # Подсветка выплат цветом
+        if payout >= 100:
+            payout_str = f"**🟢${payout:.2f}**"
+        elif 50 <= payout < 100:
+            payout_str = f"**🟨${payout:.2f}**"
         else:
-            # Обычный текст (не упоминается)
-            nick_display = nick
+            payout_str = f"**🟥${payout:.2f}**"
 
-        # Форматируем строку
-        line = f"{place:>2}. {nick_display} | {points} pts | ${payout}"
+        line = f"{place}. {nick} | {points} pts | {payout_str}"
         lines.append(line)
 
     return "\n".join(lines)
+
 
 
 @bot.event
@@ -364,66 +385,66 @@ async def colored_leaderboard(ctx):
 
     date_str, time_slot = get_utc_date_time_slot()
 
-    # Получаем данные
+    # Получаем данные лидербордов
     high = get_leaderboard("high-4hr")
     low = get_leaderboard("low-4hr")
 
-    # Назначаем места
+    # Формируем топ-10 для High leaderboard
     for i, player in enumerate(high, start=1):
         player["place"] = i
-    for i, player in enumerate(low, start=1):
-        player["place"] = i
-
-    # Топ-10 High + «свои» вне топа
     top10 = high[:10]
     top10_names = {p["nick_name"] for p in top10}
-    my_outside_high = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
-    display_high = top10 + my_outside_high
+    my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
+    new_high = top10 + my_outside_top
 
-    # Топ-15 Low + «свои» вне топа
+    # Формируем топ-15 для Low leaderboard
+    for i, player in enumerate(low, start=1):
+        player["place"] = i
     top15 = low[:15]
     top15_names = {p["nick_name"] for p in top15}
-    my_outside_low = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
-    display_low = top15 + my_outside_low
+    my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
+    new_low = top15 + my_outside_top
 
-    # Формируем текст с цветными никами
+    # Создаём Embed
+    embed = Embed(
+        title="🏆 Лидерборд CoinPoker",
+        colour=Colour.from_rgb(30, 144, 255),
+        timestamp=datetime.now(timezone.utc)
+    )
+
     try:
-        high_text = format_leaderboard_colored(
-            "🏆 High leaderboard (TOP 10)",
-            display_high,
-            my_nicks,
-            time_slot,
-            "high_leaderboard",
-            ctx.guild
+        # Формируем карту цветов ролей
+        role_color_map = {"guild": ctx.guild}
+
+        # High leaderboard (TOP 10)
+        high_text = format_leaderboard_with_roles(
+            new_high, my_nicks, time_slot, "high_leaderboard", role_color_map
         )
-        low_text = format_leaderboard_colored(
-            "🥈 Low leaderboard (TOP 15)",
-            display_low,
-            my_nicks,
-            time_slot,
-            "low_leaderboard",
-            ctx.guild
+        embed.add_field(
+            name="🏆 High leaderboard (TOP 10)",
+            value=high_text if high_text else "(нет данных)",
+            inline=False
         )
+
+        # Low leaderboard (TOP 15)
+        low_text = format_leaderboard_with_roles(
+            new_low, my_nicks, time_slot, "low_leaderboard", role_color_map
+        )
+        embed.add_field(
+            name="🥈 Low leaderboard (TOP 15)",
+            value=low_text if low_text else "(нет данных)",
+            inline=False
+        )
+
+        if my_nicks:
+            embed.set_footer(text="⭐ — ваши участники автоматически окрашены в цвет их роли")
+
     except Exception as e:
-        logger.error(f"Ошибка при форматировании цветного лидерборда: {e}")
-        await ctx.send("Произошла ошибка при формировании цветного лидерборда.")
+        logger.error(f"Ошибка при формировании Embed: {e}")
+        await ctx.send("Произошла ошибка при формировании лидерборда.")
         return
 
-    # Собираем сообщение
-    msg = f"{high_text}\n\n{low_text}"
-
-    if my_nicks:
-        msg += (
-            "\n\n⭐ — ваши участники выделены цветом их роли на сервере.\n"
-            "💡 Чтобы ник окрасился: создайте роль с цветом и назначьте её участнику."
-        )
-
-    # Проверка длины (максимум 2000 символов для простого текста в Discord)
-    if len(msg) > 1900:
-        await ctx.send("Лидерборд слишком длинный. Используйте `!l` для краткой версии.")
-        return
-
-    await ctx.send(msg)
+    await ctx.send(embed=embed)
 
     
 
