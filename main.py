@@ -176,6 +176,47 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
     return "\n".join(lines)
 
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        await ctx.send("Команда не найдена. Используйте !help для списка команд.")
+    else:
+        logger.error(f"Ошибка команды: {error}")
+
+@bot.command()
+async def ping(ctx):
+    await ctx.send("Pong! Бот работает.")
+
+@bot.command()
+async def status(ctx):
+    await ctx.send(
+        f"Бот работает!\n"
+        f"Версия Python: {sys.version}\n"
+        f"Запущен: {bot.user.created_at.strftime('%Y-%m-%d %H:%M')}"
+    )
+
+@bot.event
+async def on_ready():
+    if not hasattr(bot, 'started'):
+        bot.started = True
+        logger.info(f"✅ Бот запущен как {bot.user}")
+    else:
+        logger.warning("Повторное подключение — игнорирую.")
+
+
+@bot.command(name="test_api")
+async def test_api(ctx):
+    try:
+        r = requests.get("https://coinpoker.com", timeout=10)
+        if r.status_code == 200:
+            await ctx.send("✅ API доступно")
+        else:
+            await ctx.send(f"❌ API вернул код {r.status_code}")
+    except Exception as e:
+        await ctx.send(f"❌ Ошибка подключения: {e}")
+
+
+
 @bot.command(name="l", aliases=["д"])
 async def leaderboard(ctx):
     my_nicks_str = os.getenv("MY_NICKNAMES")
@@ -230,6 +271,7 @@ async def leaderboard(ctx):
         )
 
     await ctx.send(msg)
+    
 
 # Запуск бота
 if __name__ == "__main__":
