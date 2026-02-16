@@ -190,46 +190,41 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     
-    # Фиксированные ширины колонок (в символах)
-    COL_PLACE  = 4    # " 1. "
-    COL_NICK   = 20  # Ровно 20 символов для ника
-    COL_POINTS = 6    # Очки (число до 999999)
-    COL_PAYOUT = 8    # Выплата ($ + число)
+    # Фиксированные ширины колонок
+    COL_PLACE = 4   # для номера места (" 1. ")
+    COL_NICK = 20   # для ника (ровно 20 символов)
+    COL_POINTS = 8  # для очков (с запасом)
+    COL_PAYOUT = 6  # для выплаты
 
-    # Общая ширина для горизонтальной линии
     total_width = COL_PLACE + COL_NICK + COL_POINTS + COL_PAYOUT + 3  # +3 — разделители "│"
     hline = "─" * total_width
 
-    lines = [
-        f"{'№':<{COL_PLACE}}│{'Игрок':<{COL_NICK}}│{'Очки':>{COL_POINTS}}│{'Выплата':>{COL_PAYOUT}}",
-        hline
-    ]
+    # Шапка таблицы
+    header = (
+        f"{'№':<{COL_PLACE}}│{'Игрок':<{COL_NICK}}│{'Очки':>{COL_POINTS}}│{'Выплата':>{COL_PAYOUT}}"
+    )
+    lines = [header, hline]
 
     for p in players:
         place = p["place"]
         payout = payout_data.get(place, 0)
         nick = p["nick_name"]
 
-        # Цветное выделение через роль
+        # Выделяем ники из my_nicks цветом (жирным)
         if nick in my_nicks:
-            role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-            if role:
-                nick = role.mention  # Цветной ник через роль
-            else:
-                nick = f"**{nick}**"  # Жирный, если роли нет
-        else:
-            nick = nick  # Обычный ник
-
-        # Формируем строку с точным выравниванием
+            nick = f"**{nick}**"
+        
+        # Формируем строку с выравниванием
         line_parts = [
-            f"{place:>{COL_PLACE-2}}. ",  # Номер места с точкой (" 1. ")
-            f"{nick:<{COL_NICK}}",          # Ник (по левому краю, ровно 20 символов)
-            f"{p['points']:>6}",          # Очки (по правому краю)
-            f"${payout:>7}" if payout else "$0"  # ВЫПЛАТА: исправлена кавычка!
+            f"{place:>{COL_PLACE-2}}. ",  # Номер места с точкой
+            f"{nick:<{COL_NICK}}",         # Ник по левому краю (20 символов)
+            f"{p['points']:>{COL_POINTS}}", # Очки по правому краю
+            f"${payout:>{COL_PAYOUT-1}}" if payout else "$0"  # Выплата с $
         ]
         line = "│".join(line_parts)
         lines.append(line)
 
+    # Обернём в моноширинный блок для Discord
     return "```\n" + "\n".join(lines) + "\n```"
 
 
