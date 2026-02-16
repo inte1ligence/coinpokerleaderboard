@@ -190,13 +190,20 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     lines = []
 
-    # Заголовок
+    # Заголовок (сохраняем стиль)
     lines.append("🏅 Лидерборд CoinPoker")
     lines.append("")
 
-    # High leaderboard
-    lines.append("🥇 High leaderboard (TOP 10)")
+    # High leaderboard (TOP 10)
+    lines.append("🏆 High leaderboard (TOP 10)")
     lines.append("-" * 40)
+
+    # Рассчитываем максимальную длину ника и очков (как в format_leaderboard)
+    max_nick_len = max(
+        len(p["nick_name"]) if p["nick_name"] not in my_nicks else len(p["nick_name"]) + 2  # +2 для "* "
+        for p in players[:10]
+    )
+    max_points_len = max(len(str(p["points"])) for p in players[:10])
 
     for p in players[:10]:
         place = p["place"]
@@ -204,29 +211,67 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role
         nick = p["nick_name"]
         points = round(p["points"], 2)
 
-        # Цветное выделение ников через упоминания ролей
+        # Преобразуем ник в @mention, если он в списке my_nicks
         if nick in my_nicks:
             member = utils.get(
                 role_color_map["guild"].members,
                 lambda m: m.display_name.lower() == nick.lower() or m.name.lower() == nick.lower()
             )
             if member:
-                nick = member.mention  # Автоматически окрасится в цвет роли
+                nick = member.mention  # Используем упоминание через роль
             else:
-                nick = nick  # Если не найден — оставляем как есть
+                nick = f"@{nick}"  # Если роль не найдена
 
-        # Подсветка выплат цветом
-        if payout >= 100:
-            payout_str = f"**🟢${payout:.2f}**"
-        elif 50 <= payout < 100:
-            payout_str = f"**🟨${payout:.2f}**"
-        else:
-            payout_str = f"**🟥${payout:.2f}**"
+        # Формируем строку с выравниванием (как в format_leaderboard)
+        line = (
+            f"{place:>2}. "
+            f"{nick:<{max_nick_len}}  "
+            f"{points:<{max_points_len}}  "
+            f"${payout:.2f}"
+        )
+        lines.append(line)
 
-        line = f"{place}. {nick} | {points} pts | {payout_str}"
+    lines.append("")  # Отступ между топ-листами
+
+    # Low leaderboard (TOP 15)
+    lines.append("🥈 Low leaderboard (TOP 15)")
+    lines.append("-" * 40)
+
+    # Рассчитываем максимальную длину ника и очков для Low leaderboard
+    max_nick_len = max(
+        len(p["nick_name"]) if p["nick_name"] not in my_nicks else len(p["nick_name"]) + 2
+        for p in players[10:25]
+    )
+    max_points_len = max(len(str(p["points"])) for p in players[10:25])
+
+    for p in players[10:25]:
+        place = p["place"]
+        payout = round(payout_data.get(place, 0), 2)
+        nick = p["nick_name"]
+        points = round(p["points"], 2)
+
+        # Преобразуем ник в @mention, если он в списке my_nicks
+        if nick in my_nicks:
+            member = utils.get(
+                role_color_map["guild"].members,
+                lambda m: m.display_name.lower() == nick.lower() or m.name.lower() == nick.lower()
+            )
+            if member:
+                nick = member.mention
+            else:
+                nick = f"@{nick}"
+
+        # Формируем строку с выравниванием
+        line = (
+            f"{place:>2}. "
+            f"{nick:<{max_nick_len}}  "
+            f"{points:<{max_points_len}}  "
+            f"${payout:.2f}"
+        )
         lines.append(line)
 
     return "\n".join(lines)
+
 
 
 
@@ -405,7 +450,7 @@ async def colored_leaderboard(ctx):
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
 
-    # Создаём Embed
+    # Создаём Embed с сохранением структуры
     embed = Embed(
         title="🏆 Лидерборд CoinPoker",
         colour=Colour.from_rgb(30, 144, 255),
@@ -416,7 +461,7 @@ async def colored_leaderboard(ctx):
         # Формируем карту цветов ролей
         role_color_map = {"guild": ctx.guild}
 
-        # High leaderboard (TOP 10)
+        # Формируем текст для High leaderboard с упоминаниями ролей
         high_text = format_leaderboard_with_roles(
             new_high, my_nicks, time_slot, "high_leaderboard", role_color_map
         )
@@ -426,7 +471,7 @@ async def colored_leaderboard(ctx):
             inline=False
         )
 
-        # Low leaderboard (TOP 15)
+        # Формируем текст для Low leaderboard с упоминаниями ролей
         low_text = format_leaderboard_with_roles(
             new_low, my_nicks, time_slot, "low_leaderboard", role_color_map
         )
