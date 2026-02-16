@@ -7,6 +7,9 @@ import logging
 import sys
 
 print(sys.version)
+print("Окружение:", os.environ)
+print("MY_NICKNAMES:", os.getenv("MY_NICKNAMES"))
+
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
