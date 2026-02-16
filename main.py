@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import os
 import logging
 import sys
+from discord import utils
 
 print(sys.version)
 print("Окружение:", os.environ)
