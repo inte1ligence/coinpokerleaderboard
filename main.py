@@ -305,62 +305,6 @@ async def test_api(ctx):
 
 @bot.command(name="l", aliases=["д"])
 async def leaderboard(ctx):
-    my_nicks_str = os.getenv("MY_NICKNAMES")
-    if my_nicks_str:
-        my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
-    else:
-        my_nicks = []
-
-    date_str, time_slot = get_utc_date_time_slot()
-
-    # High leaderboard
-    high = get_leaderboard("high-4hr")
-    for i, player in enumerate(high, start=1):
-        player["place"] = i
-    top10 = high[:10]
-    top10_names = {p["nick_name"] for p in top10}
-    my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
-    new_high = top10 + my_outside_top
-
-    # Low leaderboard
-    low = get_leaderboard("low-4hr")
-    for i, player in enumerate(low, start=1):
-        player["place"] = i
-    top15 = low[:15]
-    top15_names = {p["nick_name"] for p in top15}
-    my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
-    new_low = top15 + my_outside_top
-
-
-    msg = "```\n"
-    msg += format_leaderboard(
-        "🏆 High leaderboard (TOP 10)",
-        new_high,
-        my_nicks,
-        time_slot=time_slot,
-        board_type="high_leaderboard"
-    )
-    msg += "\n"
-    msg += format_leaderboard(
-        "🥈 Low leaderboard (TOP 15)",
-        new_low,
-        my_nicks,
-        time_slot=time_slot,
-        board_type="low_leaderboard"
-    )
-    msg += "```"
-
-    if my_nicks:
-        msg += (
-            "\n⭐ — ваши участники\n"
-            "💡 Чтобы выделить цветом ник на сервере: создайте роль с цветом и назначьте её участнику."
-        )
-
-    await ctx.send(msg)
-
-
-@bot.command(name="л", aliases=["k"])
-async def leaderboard(ctx):
     # Получаем список ников из переменной окружения
     my_nicks_str = os.getenv("MY_NICKNAMES")
     if my_nicks_str:
