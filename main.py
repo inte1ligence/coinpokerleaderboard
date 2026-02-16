@@ -273,20 +273,26 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
         place = p["place"]
         payout = payout_data.get(place, 0)  # 0, если выплаты нет
 
+        # Формируем ник: добавляем ⭐ для моих ников
+        nick_display = p["nick_name"]
+        if p["nick_name"] in my_nicks:
+            nick_display = f!⭐ {nick_display}"
+
+        # Собираем строку
         line = (
             f"{place:>2}. "
-            f"{p['nick_name']:<{max_nick_len}}  "
+            f"{nick_display:<{max_nick_len + 2}}  "  # +2 на случай, если добавили "⭐ "
             f"{p['points']:<{max_points_len}}  "
             f"${payout}"
         )
 
+        # Жирное выделение всей строки для моих ников
         if p["nick_name"] in my_nicks:
             line = f"**{line}**"
 
         lines.append(line)
 
     return "\n".join(lines) + "\n"
-
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -324,6 +330,7 @@ async def leaderboard(ctx):
         my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
     else:
         my_nicks = []  # или дефолтный список для разработки
+
     # Получаем текущий временной слот
     date_str, time_slot = get_utc_date_time_slot()
 
@@ -345,7 +352,7 @@ async def leaderboard(ctx):
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
 
-    # Формируем сообщение с выплатами
+    # Формируем сообщение с выплатами и эмоджи
     msg = ""
     msg += format_leaderboard(
         "🏆 High leaderboard (TOP 10)",
@@ -362,7 +369,16 @@ async def leaderboard(ctx):
         board_type="low_leaderboard"
     )
 
+    # Пояснение в конце (только если есть мои ники)
+    if my_nicks:
+        msg += (
+            "\n"
+            "⭐ — ваши участники\n"
+            "💡 Чтобы выделить цветом ник на сервере: создайте роль с цветом и назначьте её участнику."
+        )
+
     await ctx.send(msg)
+
 
 
 if __name__ == "__main__":
