@@ -208,6 +208,49 @@ async def debug(ctx):
         f"- UTC время: `{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}`"
     )
 
+@bot.command(name="test_nicks")
+async def test_nicks(ctx):
+    # 1. Получаем список ваших ников из переменной окружения
+    my_nicks_str = os.getenv("MY_NICKNAMES")
+    if not my_nicks_str:
+        return await ctx.send("❌ Переменная окружения MY_NICKNAMES не задана!")
+    
+    my_nicks = [nick.strip().lower() for nick in my_nicks_str.split(",")]
+    await ctx.send(f"Ваши ники (для проверки): {', '.join(my_nicks)}")
+
+    # 2. Получаем данные лидербордов
+    date_str, time_slot = get_utc_date_time_slot()
+    high = get_leaderboard("high-4hr")
+    low = get_leaderboard("low-4hr")
+
+    # Объединяем оба лидерборда в один список игроков
+    all_players = high + low
+    api_nicks = {p["nick_name"].lower() for p in all_players}  # Ники из API (нижний регистр)
+
+    # 3. Проверяем, какие ники найдены
+    found = []
+    not_found = []
+
+    for nick in my_nicks:
+        if nick in api_nicks:
+            found.append(nick)
+        else:
+            not_found.append(nick)
+
+    # 4. Формируем ответ
+    result = "🔎 Результаты проверки ников:\n"
+    
+    if found:
+        result += f"✅ Найдены в лидерборде: {', '.join(found)}\n"
+    else:
+        result += "✅ Ники не найдены в текущем лидерборде.\n"
+    
+    if not_found:
+        result += f"❌ Не найдены: {', '.join(not_found)}"
+    
+    await ctx.send(result)
+
+
 @bot.command(name="test_api")
 async def test_api(ctx):
     try:
