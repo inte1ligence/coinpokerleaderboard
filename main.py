@@ -189,32 +189,48 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         return None
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    lines = []
+    
+    # Фиксированные ширины колонок (в символах)
+    COL_PLACE  = 4    # " 1. "
+    COL_NICK   = 20  # Ровно 20 символов для ника
+    COL_POINTS = 6    # Очки (число до 999999)
+    COL_PAYOUT = 8    # Выплата ($ + число)
+
+    # Общая ширина для горизонтальной линии
+    total_width = COL_PLACE + COL_NICK + COL_POINTS + COL_PAYOUT + 3  # +3 — разделители "│"
+    hline = "─" * total_width
+
+    lines = [
+        f"{'№':<{COL_PLACE}}│{'Игрок':<{COL_NICK}}│{'Очки':>{COL_POINTS}}│{'Выплата':>{COL_PAYOUT}}",
+        hline
+    ]
 
     for p in players:
         place = p["place"]
         payout = payout_data.get(place, 0)
         nick = p["nick_name"]
 
-        try:
-            # Проверяем, есть ли ник в списке для выделения
-            if nick in my_nicks:
-                # Ищем роль по имени ника
-                role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-                if role:
-                    nick = role.mention  # Упоминание роли → цветной ник
-                else:
-                    nick = f"**{nick}**"  # Если роли нет — жирный шрифт
+        # Цветное выделение через роль
+        if nick in my_nicks:
+            role = discord.utils.find(lambda r: r.name == nick, guild.roles)
+            if role:
+                nick = role.mention  # Цветной ник через роль
             else:
-                nick = nick  # Обычный ник
+                nick = f"**{nick}**"  # Жирный, если роли нет
+        else:
+            nick = nick  # Обычный ник
 
-            # Формируем строку с выравниванием
-            line = f"{place:>2}. {nick:<20} {p['points']:>6} pts ${payout:>4}"
-            lines.append(line)
-        except Exception as e:
-            logger.error(f"Ошибка при обработке игрока {nick}: {e}")
+        # Формируем строку с точным выравниванием
+        line_parts = [
+            f"{place:>{COL_PLACE-2}}. ",  # Номер места с точкой (" 1. ")
+            f"{nick:<{COL_NICK}}",          # Ник (по левому краю, ровно 20 символов)
+            f"{p['points']:>6}",          # Очки (по правому краю)
+            f"${payout:>7}" if payout else "$0!  # Выплата с $ (по правому краю)
+        ]
+        line = "│".join(line_parts)
+        lines.append(line)
 
-    return "\n".join(lines) if lines else None
+    return "```\n" + "\n".join(lines) + "\n```"
 
 
 @bot.event
@@ -308,20 +324,18 @@ async def test_api(ctx):
     except Exception as e:
         await ctx.send(f"❌ Ошибка подключения: {e}")
 
-
-
 @bot.command(name="l", aliases=["д"])
 async def leaderboard(ctx):
     my_nicks_str = os.getenv("MY_NICKNAMES")
-    if my_nicks_str:
-        my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
-    else:
-        my_nicks = []
+    my_nicks = [nick.strip() for nick in my_nicks_str.split(",")] if my_nicks_str else []
 
     date_str, time_slot = get_utc_date_time_slot()
 
-    # High leaderboard
+    # Получаем данные лидербордов
     high = get_leaderboard("high-4hr")
+    low = get_leaderboard("low-4hr")
+
+    # Формируем топ-10 для High leaderboard
     for i, player in enumerate(high, start=1):
         player["place"] = i
     top10 = high[:10]
@@ -329,14 +343,14 @@ async def leaderboard(ctx):
     my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
     new_high = top10 + my_outside_top
 
-    # Low leaderboard
-    low = get_leaderboard("low-4hr")
+    # Формируем топ-15 для Low leaderboard
     for i, player in enumerate(low, start=1):
         player["place"] = i
     top15 = low[:15]
     top15_names = {p["nick_name"] for p in top15}
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
+
 
     # Создаём Embed
     embed = Embed(
@@ -346,30 +360,37 @@ async def leaderboard(ctx):
     )
 
     try:
-        # Формируем текст для High leaderboard
-        high_text = format_leaderboard_with_roles(new_high, my_nicks, time_slot, "high_leaderboard", ctx.guild)
+        # High leaderboard (TOP 10)
+        high_text = format_leaderboard_with_roles(
+            new_high, my_nicks, time_slot, "high_leaderboard", ctx.guild
+        )
         embed.add_field(
             name="🏆 High leaderboard (TOP 10)",
-            value=high_text or "(нет данных)",
+            value=high_text or "```\n(нет данных)\n```",
             inline=False
         )
 
-        # Формируем текст для Low leaderboard
-        low_text = format_leaderboard_with_roles(new_low, my_nicks, time_slot, "low_leaderboard", ctx.guild)
+        # Low leaderboard (TOP 15)
+        low_text = format_leaderboard_with_roles(
+            new_low, my_nicks, time_slot, "low_leaderboard", ctx.guild
+        )
         embed.add_field(
             name="🥈 Low leaderboard (TOP 15)",
-            value=low_text or "(нет данных)",
+            value=low_text or "```\n(нет данных)\n```",
             inline=False
         )
 
         if my_nicks:
             embed.set_footer(text="⭐ — ваши участники (выделены цветом роли)")
+
     except Exception as e:
         logger.error(f"Ошибка при формировании Embed: {e}")
         await ctx.send("Произошла ошибка при формировании лидерборда.")
         return
 
     await ctx.send(embed=embed)
+
+
 
 # Запуск бота
 if __name__ == "__main__":
