@@ -262,38 +262,43 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
     if not players:
         return f"{title}\n(нет данных)\n"
 
-    # Получаем выплаты для текущего слота и типа лидерборда
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
 
-    max_nick_len = max(len(p["nick_name"]) for p in players)
+    # Считаем максимальную длину ника С УЧЁТОМ "* "
+    max_nick_len = 0
+    for p in players:
+        nick = p["nick_name"]
+        if nick in my_nicks:
+            nick = f"* {nick}"
+        max_nick_len = max(max_nick_len, len(nick))
+
     max_points_len = max(len(str(p["points"])) for p in players)
 
     lines = [title]
+
     for p in players:
         place = p["place"]
-        payout = payout_data.get(place, 0)  # 0, если выплаты нет
+        payout = payout_data.get(place, 0)
 
-        # Формируем ник: добавляем '*' для моих ников (безопасная замена эмодзи)
         nick_display = p["nick_name"]
-        if p["nick_name"] in my_nicks:
-            nick_display = f"* {nick_display}"  # ← Безопасный символ вместо эмодзи
+        is_my = nick_display in my_nicks
+        if is_my:
+            nick_display = f"* {nick_display}"
 
-
-        # Собираем строку
         line = (
             f"{place:>2}. "
-            f"{nick_display:<{max_nick_len + 2}}  "  # +2 на случай, если добавили "* "
+            f"{nick_display:<{max_nick_len}}  "
             f"{p['points']:<{max_points_len}}  "
             f"${payout}"
         )
 
-        # Жирное выделение всей строки для моих ников
-        if p["nick_name"] in my_nicks:
+        if is_my:
             line = f"**{line}**"
 
         lines.append(line)
 
     return "\n".join(lines) + "\n"
+
 
 
 @bot.event
