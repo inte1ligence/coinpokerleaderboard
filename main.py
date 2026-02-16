@@ -318,8 +318,12 @@ async def on_ready():
 
 @bot.command(name="l")
 async def leaderboard(ctx):
-    my_nicks = ['kokimos', 'wlthmd', 'RedKing', 'yzeles', 'ArkMaKeSoX']
-    
+    # Получаем ники из переменных окружения
+    my_nicks_str = os.getenv("MY_NICKNAMES")
+    if my_nicks_str:
+        my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
+    else:
+        my_nicks = []  # или дефолтный список для разработки
     # Получаем текущий временной слот
     date_str, time_slot = get_utc_date_time_slot()
 
