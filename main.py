@@ -175,11 +175,8 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
     return "\n".join(lines)
 
 def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
-    """
-    Форматирует лидерборд с цветным выделением ников через упоминания ролей.
-    """
     if not players:
-        return "(нет данных)"
+        return None
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     lines = []
@@ -189,26 +186,26 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         payout = payout_data.get(place, 0)
         nick = p["nick_name"]
 
-        # Если ник в списке MY_NICKNAMES — заменяем на упоминание роли
-        if nick in my_nicks:
-            role = discord.utils.get(guild.roles, name=nick)
-            if role:
-                nick = role.mention  # Упоминание роли → цветной ник
+        try:
+            # Проверяем, есть ли ник в списке для выделения
+            if nick in my_nicks:
+                # Ищем роль по имени ника
+                role = discord.utils.find(lambda r: r.name == nick, guild.roles)
+                if role:
+                    nick = role.mention  # Упоминание роли → цветной ник
+                else:
+                    nick = f"**{nick}**"  # Если роли нет — жирный шрифт
             else:
-                nick = f"**{nick}**"  # Если роли нет — жирный шрифт
-        else:
-            nick = nick  # Обычный ник
+                nick = nick  # Обычный ник
 
-        # Формируем строку с выравниванием
-        line = (
-            f"{place:>2}. "
-            f"{nick:<20} "  # Выравнивание по левому краю (ширина 20 символов)
-            f"{p['points']:>6} pts "
-            f"${payout:>4}"
-        )
-        lines.append(line)
+            # Формируем строку с выравниванием
+            line = f"{place:>2}. {nick:<20} {p['points']:>6} pts ${payout:>4}"
+            lines.append(line)
+        except Exception as e:
+            logger.error(f"Ошибка при обработке игрока {nick}: {e}")
 
-    return "\n".join(lines)
+    return "\n".join(lines) if lines else None
+
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -305,7 +302,6 @@ async def test_api(ctx):
 
 @bot.command(name="l", aliases=["д"])
 async def leaderboard(ctx):
-    # Получаем список ников из переменной окружения
     my_nicks_str = os.getenv("MY_NICKNAMES")
     if my_nicks_str:
         my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
@@ -332,44 +328,36 @@ async def leaderboard(ctx):
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
 
-    # Создаём Embed для форматированного вывода
+    # Создаём Embed
     embed = Embed(
         title="🏆 Лидерборд CoinPoker",
-        colour=Colour.from_rgb(30, 144, 255),  # Голубой цвет заголовка
+        colour=Colour.from_rgb(30, 144, 255),
         timestamp=datetime.now(timezone.utc)
     )
 
-    # Формируем текст для High leaderboard с цветными никами
-    high_text = format_leaderboard_with_roles(
-        new_high,
-        my_nicks,
-        time_slot,
-        "high_leaderboard",
-        ctx.guild
-    )
-    embed.add_field(
-        name="🏆 High leaderboard (TOP 10)",
-        value=high_text,
-        inline=False
-    )
+    try:
+        # Формируем текст для High leaderboard
+        high_text = format_leaderboard_with_roles(new_high, my_nicks, time_slot, "high_leaderboard", ctx.guild)
+        embed.add_field(
+            name="🏆 High leaderboard (TOP 10)",
+            value=high_text or "(нет данных)",
+            inline=False
+        )
 
-    # Формируем текст для Low leaderboard с цветными никами
-    low_text = format_leaderboard_with_roles(
-        new_low,
-        my_nicks,
-        time_slot,
-        "low_leaderboard",
-        ctx.guild
-    )
-    embed.add_field(
-        name="🥈 Low leaderboard (TOP 15)",
-        value=low_text,
-        inline=False
-    )
+        # Формируем текст для Low leaderboard
+        low_text = format_leaderboard_with_roles(new_low, my_nicks, time_slot, "low_leaderboard", ctx.guild)
+        embed.add_field(
+            name="🥈 Low leaderboard (TOP 15)",
+            value=low_text or "(нет данных)",
+            inline=False
+        )
 
-    # Добавляем пояснение
-    if my_nicks:
-        embed.set_footer(text="⭐ — ваши участники (выделены цветом роли)")
+        if my_nicks:
+            embed.set_footer(text="⭐ — ваши участники (выделены цветом роли)")
+    except Exception as e:
+        logger.error(f"Ошибка при формировании Embed: {e}")
+        await ctx.send("Произошла ошибка при формировании лидерборда.")
+        return
 
     await ctx.send(embed=embed)
 
