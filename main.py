@@ -174,6 +174,39 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
     return "\n".join(lines)
 
+def format_leaderboard_colored(title: str, players: list, my_nicks: list, time_slot: str, board_type: str, guild: discord.Guild) -> str:
+    if not players:
+        return f"{title}\n(нет данных)\n"
+
+    payout_data = payouts.get(time_slot, {}).get(board_type, {})
+    lines = [f"**{title}**"]
+
+    for p in players:
+        place = p["place"]
+        nick = p["nick_name"]
+        points = round(p["points"], 2)
+        payout = round(payout_data.get(place, 0), 2)
+
+        # Ищем участника по нику или отображаемому имени
+        member = (
+            utils.get(guild.members, nickname=nick) or
+            utils.get(guild.members, display_name=nick)
+        )
+
+        if member and nick.lower() in [mn.lower() for mn in my_nicks]:
+            # Упоминаем участника — Discord сам окрасит ник в цвет роли
+            nick_display = member.mention
+        else:
+            # Обычный текст (не упоминается)
+            nick_display = nick
+
+        # Форматируем строку
+        line = f"{place:>2}. {nick_display} | {points} pts | ${payout}"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
@@ -321,6 +354,75 @@ async def leaderboard(ctx):
         )
 
     await ctx.send(msg)
+
+@bot.command(name="k", aliases=["л"])
+async def colored_leaderboard(ctx):
+    my_nicks_str = os.getenv("MY_NICKNAMES")
+    my_nicks = [nick.strip() for nick in my_nicks_str.split(",")] if my_nicks_str else []
+
+    date_str, time_slot = get_utc_date_time_slot()
+
+    # Получаем данные
+    high = get_leaderboard("high-4hr")
+    low = get_leaderboard("low-4hr")
+
+    # Назначаем места
+    for i, player in enumerate(high, start=1):
+        player["place"] = i
+    for i, player in enumerate(low, start=1):
+        player["place"] = i
+
+    # Топ-10 High + «свои» вне топа
+    top10 = high[:10]
+    top10_names = {p["nick_name"] for p in top10}
+    my_outside_high = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
+    display_high = top10 + my_outside_high
+
+    # Топ-15 Low + «свои» вне топа
+    top15 = low[:15]
+    top15_names = {p["nick_name"] for p in top15}
+    my_outside_low = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
+    display_low = top15 + my_outside_low
+
+    # Формируем текст с цветными никами
+    try:
+        high_text = format_leaderboard_colored(
+            "🏆 High leaderboard (TOP 10)",
+            display_high,
+            my_nicks,
+            time_slot,
+            "high_leaderboard",
+            ctx.guild
+        )
+        low_text = format_leaderboard_colored(
+            "🥈 Low leaderboard (TOP 15)",
+            display_low,
+            my_nicks,
+            time_slot,
+            "low_leaderboard",
+            ctx.guild
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при форматировании цветного лидерборда: {e}")
+        await ctx.send("Произошла ошибка при формировании цветного лидерборда.")
+        return
+
+    # Собираем сообщение
+    msg = f"{high_text}\n\n{low_text}"
+
+    if my_nicks:
+        msg += (
+            "\n\n⭐ — ваши участники выделены цветом их роли на сервере.\n"
+            "💡 Чтобы ник окрасился: создайте роль с цветом и назначьте её участнику."
+        )
+
+    # Проверка длины (максимум 2000 символов для простого текста в Discord)
+    if len(msg) > 1900:
+        await ctx.send("Лидерборд слишком длинный. Используйте `!l` для краткой версии.")
+        return
+
+    await ctx.send(msg)
+
     
 
 # Запуск бота
