@@ -183,110 +183,40 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 
     return "\n".join(lines)
 
-def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, role_color_map):
+def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
     if not players:
         return None
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
+    # Явная проверка на отсутствие payout_data
+    if not payout_data:
+        payout_data = {}
+
     lines = []
 
-    # Заголовок
-    lines.append("🏅 Лидерборд CoinPoker")
-    lines.append("")
-
-    # High leaderboard (TOP 10)
-    lines.append("🏆 High leaderboard (TOP 10)")
-    lines.append("-" * 40)
-
-    high_players = players[:10]
-    if high_players:  # Проверка на пустоту
-        # Рассчитываем максимальную длину ника и очков
-        max_nick_len = max(
-            len(p["nick_name"]) if p["nick_name"] not in my_nicks else len(p["nick_name"]) + 2
-            for p in high_players
-        )
-        max_points_len = max(len(str(p["points"])) for p in high_players)
-    else:
-        max_nick_len = 0
-        max_points_len = 0
-
-    for p in high_players:
+    for p in players:
         place = p["place"]
-        payout = round(payout_data.get(place, 0), 2)
+        payout = payout_data.get(place, 0)
         nick = p["nick_name"]
-        points = round(p["points"], 2)
 
-        # Преобразуем ник в @mention, если он в списке my_nicks
-        if nick in my_nicks:
-            member = utils.get(
-                role_color_map["guild"].members,
-                lambda m: m.display_name.lower() == nick.lower() or m.name.lower() == nick.lower()
-            )
-            if member:
-                nick = member.mention
-            else:
-                nick = f"@{nick}"
+        try:
+            if nick in my_nicks:
+                role = discord.utils.find(lambda r: r.name == nick, guild.roles)
+                if role:
+                    nick = role.mention
+                else:
+                    nick = f"**{nick}**"
+            # Убрано лишнее 'else: nick = nick'
 
-        # Формируем строку с выравниванием
-        if max_nick_len > 0 and max_points_len > 0:
-            line = (
-                f"{place:>2}. "
-                f"{nick:<{max_nick_len}}  "
-                f"{points:<{max_points_len}}  "
-                f"${payout:.2f}"
-            )
-        else:
-            line = f"{place:>2}. {nick}  {points}  ${payout:.2f}"
-        lines.append(line)
+            # Ограничение длины ника для предотвращения перекоса таблицы
+            nick_display = nick[:25]  # Макс. 25 символов
+            line = f"{place:>2}. {nick_display:<25} {p['points']:>6} pts ${payout:>4}"
+            lines.append(line)
+        except Exception as e:
+            logger.error(f"Ошибка при обработке игрока {nick}: {e}")
+            continue  # Пропускаем проблемного игрока
 
-    lines.append("")  # Отступ между топ-листами
-
-    # Low leaderboard (TOP 15)
-    lines.append("🥈 Low leaderboard (TOP 15)")
-    lines.append("-" * 40)
-
-    low_players = players[10:25]
-    if low_players:  # Проверка на пустоту
-        # Рассчитываем максимальную длину ника и очков для Low leaderboard
-        max_nick_len = max(
-            len(p["nick_name"]) if p["nick_name"] not in my_nicks else len(p["nick_name"]) + 2
-            for p in low_players
-        )
-        max_points_len = max(len(str(p["points"])) for p in low_players)
-    else:
-        max_nick_len = 0
-        max_points_len = 0
-
-    for p in low_players:
-        place = p["place"]
-        payout = round(payout_data.get(place, 0), 2)
-        nick = p["nick_name"]
-        points = round(p["points"], 2)
-
-        # Преобразуем ник в @mention, если он в списке my_nicks
-        if nick in my_nicks:
-            member = utils.get(
-                role_color_map["guild"].members,
-                lambda m: m.display_name.lower() == nick.lower() or m.name.lower() == nick.lower()
-            )
-            if member:
-                nick = member.mention
-            else:
-                nick = f"@{nick}"
-
-        # Формируем строку с выравниванием
-        if max_nick_len > 0 and max_points_len > 0:
-            line = (
-                f"{place:>2}. "
-                f"{nick:<{max_nick_len}}  "
-                f"{points:<{max_points_len}}  "
-                f"${payout:.2f}"
-            )
-        else:
-            line = f"{place:>2}. {nick}  {points}  ${payout:.2f}"
-        lines.append(line)
-
-    return "\n".join(lines)
+    return "\n".join(lines) if lines else None
 
 
 
@@ -441,23 +371,18 @@ async def leaderboard(ctx):
     await ctx.send(msg)
 
 @bot.command(name="k", aliases=["л"])
-async def colored_leaderboard(ctx):
+async def coloredleaderboard(ctx):
     my_nicks_str = os.getenv("MY_NICKNAMES")
-    my_nicks = [nick.strip() for nick in my_nicks_str.split(",")] if my_nicks_str else []
+    if my_nicks_str:
+        my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
+    else:
+        my_nicks = []
+        logger.warning("MY_NICKNAMES не задан в окружении")
 
     date_str, time_slot = get_utc_date_time_slot()
 
-    # Получаем данные лидербордов
+    # High leaderboard
     high = get_leaderboard("high-4hr")
-    low = get_leaderboard("low-4hr")
-
-    # Логируем отсутствие данных
-    if not high:
-        logger.warning("High leaderboard returned no data")
-    if not low:
-        logger.warning("Low leaderboard returned no data")
-
-    # Формируем топ-10 для High leaderboard
     for i, player in enumerate(high, start=1):
         player["place"] = i
     top10 = high[:10]
@@ -465,7 +390,8 @@ async def colored_leaderboard(ctx):
     my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
     new_high = top10 + my_outside_top
 
-    # Формируем топ-15 для Low leaderboard
+    # Low leaderboard
+    low = get_leaderboard("low-4hr")
     for i, player in enumerate(low, start=1):
         player["place"] = i
     top15 = low[:15]
@@ -473,7 +399,6 @@ async def colored_leaderboard(ctx):
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
 
-    # Создаём Embed
     embed = Embed(
         title="🏆 Лидерборд CoinPoker",
         colour=Colour.from_rgb(30, 144, 255),
@@ -481,16 +406,13 @@ async def colored_leaderboard(ctx):
     )
 
     try:
-        # Формируем карту цветов ролей
-        role_color_map = {"guild": ctx.guild}
-
-        # Формируем текст для High leaderboard
-        if new_high:
-            high_text = format_leaderboard_with_roles(
-                new_high, my_nicks, time_slot, "high_leaderboard", role_color_map
-            )
-        else:
+        # Проверка на пустые данные
+        if not new_high:
             high_text = "(нет данных)"
+        else:
+            high_text = format_leaderboard_with_roles(new_high, my_nicks, time_slot, "high_leaderboard", ctx.guild)
+            if not high_text:
+                high_text = "(нет данных)"
 
         embed.add_field(
             name="🏆 High leaderboard (TOP 10)",
@@ -498,13 +420,12 @@ async def colored_leaderboard(ctx):
             inline=False
         )
 
-        # Формируем текст для Low leaderboard
-        if new_low:
-            low_text = format_leaderboard_with_roles(
-                new_low, my_nicks, time_slot, "low_leaderboard", role_color_map
-            )
-        else:
+        if not new_low:
             low_text = "(нет данных)"
+        else:
+            low_text = format_leaderboard_with_roles(new_low, my_nicks, time_slot, "low_leaderboard", ctx.guild)
+            if not low_text:
+                low_text = "(нет данных)"
 
         embed.add_field(
             name="🥈 Low leaderboard (TOP 15)",
@@ -513,14 +434,15 @@ async def colored_leaderboard(ctx):
         )
 
         if my_nicks:
-            embed.set_footer(text="⭐ — ваши участники автоматически окрашены в цвет их роли")
+            embed.set_footer(text="⭐ — ваши участники (выделены цветом роли)")
 
     except Exception as e:
         logger.error(f"Ошибка при формировании Embed: {e}")
         await ctx.send("Произошла ошибка при формировании лидерборда.")
-        return
+        return  # Явное завершение команды
 
     await ctx.send(embed=embed)
+
 
     
 
