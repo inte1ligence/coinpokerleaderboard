@@ -177,7 +177,7 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
         )
 
         if is_my:
-            line = f"**{line}**"
+            line = f"{line}**"
 
         lines.append(line)
 
@@ -205,7 +205,7 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
                 if role:
                     nick = role.mention
                 else:
-                    nick = f"**{nick}**"
+                    nick = f"{nick}**"
             # Убрано лишнее 'else: nick = nick'
 
             # Ограничение длины ника для предотвращения перекоса таблицы
