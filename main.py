@@ -96,16 +96,13 @@ def get_utc_date_time_slot():
     start = (now.hour // 4) * 4
     time_slot = f"{start:02d}-{(start + 4):02d}"
     return date_str, time_slot
-
 def get_leaderboard(board_type_api):
     date_str, time_slot = get_utc_date_time_slot()
 
-    # Сопоставление типов для API и payouts
     board_type_payout = {
         "high-4hr": "high_leaderboard",
         "low-4hr": "low_leaderboard"
     }.get(board_type_api, board_type_api)
-
 
     data = {
         "action": "get_current_leaderboard_ajax",
@@ -127,18 +124,28 @@ def get_leaderboard(board_type_api):
                 content_type = r.headers.get("Content-Type", "")
                 if "application/json" in content_type:
                     try:
-                        logger.info(f"Получен ответ: {r.text}")
-                        return r.json().get("data", {}).get("data", [])
-                    except ValueError as e:
-                        logger.error(f"Не удалось декодировать JSON: {e}, ответ: {r.text}")
-                else:
-                    logger.error(f"Ответ не JSON: Content-Type={content_type}, текст: {r.text}")
-            else:
-                logger.warning(f"Попытка {attempt + 1} API вернул код {r.status_code}: {r.text}")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Попытка {attempt + 1} ошибка сети: {e}, URL: {COINPOKER_URL}, данные: {data}")
-        time.sleep(2)
-    return []
+                response_data = r.json()
+                logger.info(f"Получен ответ: {response_data}")
+                # Извлекаем данные и явно присваиваем place
+                raw_players = response_data.get("data", {}).get("data", [])
+                players_with_place = []
+                for i, player in enumerate(raw_players, start=1):
+                    players_with_place.append({
+                **player,
+                "place": i  # Явно присваиваем место
+            })
+                return players_with_place
+            except ValueError as e:
+                logger.error(f"Не удалось декодировать JSON: {e}, ответ: {r.text}")
+        else:
+            logger.error(f"Ответ не JSON: Content-Type={content_type}, текст: {r.text}")
+    else:
+        logger.warning(f"Попытка {attempt + 1} API вернул код {r.status_code}: {r.text}")
+except requests.exceptions.RequestException as e:
+    logger.error(f"Попытка {attempt + 1} ошибка сети: {e}, URL: {COINPOKER_URL}, данные: {data}")
+time.sleep(2)
+return []
+
 
 
 def format_leaderboard(title, players, my_nicks, time_slot, board_type):
