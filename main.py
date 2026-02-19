@@ -176,51 +176,71 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     if not players:
         return None
 
-    # Отладочная печать — проверьте, есть ли place у игроков
-    print("Отладка: проверка наличия поля 'place' у игроков")
-    for i, p in enumerate(players):
-        if "place" not in p:
-            print(f"ВНИМАНИЕ: у игрока {p['nick_name']} отсутствует поле 'place'")
+    # Отладочная проверка наличия place
+    missing_place = [p['nick_name'] for p in players if 'place' not in p]
+    if missing_place:
+        logger.warning(f"У игроков отсутствуют поля 'place': {missing_place}")
+        # При отсутствии place присваиваем порядковые номера
+        for i, p in enumerate(players, start=1):
+            if 'place' not in p:
+                p['place'] = i
 
-    # Сортируем игроков по полю 'place' — это критично!
-    players = sorted(players, key=lambda x: x.get("place", float("inf")))
+    # Сортируем по place
+    players = sorted(players, key=lambda x: x['place'])
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     if not payout_data:
         payout_data = {}
 
-    lines = []
+    # Шаг 1: определяем максимальную длину ника (с учётом @ или ***)
+    max_nick_len = 0
+    processed_players = []  # Для хранения обработанных ников
 
     for p in players:
-        # Явная проверка наличия place
-        if "place" not in p:
-            logger.error(f"Пропущен игрок {p['nick_name']}: отсутствует поле 'place'")
-            continue
-        place = p["place"]
+        nick = p['nick_name']
+        if nick in my_nicks:
+            role = discord.utils.find(lambda r: r.name == nick, guild.roles)
+            if role:
+                display_nick = role.mention
+            else:
+                display_nick = f"@{nick}"
+        else:
+            display_nick = nick
+
+        # Сохраняем обработанный ник для дальнейшего использования
+        processed_players.append({
+            **p,
+            'display_nick': display_nick
+        })
+
+        # Обновляем максимальную длину
+        max_nick_len = max(max_nick_len, len(display_nick))
+
+    # Добавляем 4 пробела к максимальной длине ника
+    nick_column_width = max_nick_len + 4
+
+    # Шаг 2: формируем строки с новым форматированием
+    lines = []
+    for p in processed_players:
+        place = p['place']
         payout = payout_data.get(place, 0)
-        nick = p["nick_name"]
+        points = p['points']
+        display_nick = p['display_nick']
 
         try:
-            if nick in my_nicks:
-                role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-                if role:
-                    nick = role.mention
-                else:
-                    nick = f"@{nick}"  # Добавляем @ вместо ***
-
-            # Ограничение длины ника
-            nick_display = nick[:25]
-            # Форматирование строки с place
-            line = f"{place:>2}. {nick_display:<25} {p['points']:>8.2f}    {payout:>4}$"
+            # Форматирование строки: место + ник (с фиксированной шириной) + очки + деньги
+            line = (
+                f"{place:>2}. "
+                f"{display_nick:<{nick_column_width}}"
+                f"{points:>8.2f}    "
+                f"${payout:>4}"
+            )
             lines.append(line)
         except Exception as e:
-            logger.error(f"Ошибка при обработке игрока {nick}: {e}")
+            logger.error(f"Ошибка при обработке игрока {display_nick}: {e}")
             continue
 
     return "\n".join(lines) if lines else None
-
-
-
 
 
 
