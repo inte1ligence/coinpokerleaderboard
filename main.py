@@ -177,13 +177,18 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         return None
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    # Явная проверка на отсутствие payout_data
     if not payout_data:
         payout_data = {}
 
-    lines = []
+    # Сортируем игроков по полю 'place'
+    players = sorted(players, key=lambda x: x.get("place", float("inf")))
 
+    lines = []
     for p in players:
+        # Проверяем наличие поля 'place'
+        if "place" not in p:
+            logger.error(f"Пропущен игрок {p['nick_name']}: отсутствует поле 'place'")
+            continue
         place = p["place"]
         payout = payout_data.get(place, 0)
         nick = p["nick_name"]
@@ -195,17 +200,16 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
                     nick = role.mention
                 else:
                     nick = f"{nick}**"
-            # Убрано лишнее 'else: nick = nick'
 
-            # Ограничение длины ника для предотвращения перекоса таблицы
-            nick_display = nick[:25]  # Макс. 25 символов
+            nick_display = nick[:25]
             line = f"{place:>2}. {nick_display:<25} {p['points']:>6}    {payout:>4}$"
             lines.append(line)
         except Exception as e:
             logger.error(f"Ошибка при обработке игрока {nick}: {e}")
-            continue  # Пропускаем проблемного игрока
+            continue
 
     return "\n".join(lines) if lines else None
+
 
 
 
