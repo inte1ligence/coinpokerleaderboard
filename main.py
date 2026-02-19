@@ -176,19 +176,16 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     if not players:
         return None
 
+    # Сортируем игроков по полю 'place' перед обработкой
+    players = sorted(players, key=lambda x: x["place"])
+
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     if not payout_data:
         payout_data = {}
 
-    # Сортируем игроков по полю 'place'
-    players = sorted(players, key=lambda x: x.get("place", float("inf")))
-
     lines = []
+
     for p in players:
-        # Проверяем наличие поля 'place'
-        if "place" not in p:
-            logger.error(f"Пропущен игрок {p['nick_name']}: отсутствует поле 'place'")
-            continue
         place = p["place"]
         payout = payout_data.get(place, 0)
         nick = p["nick_name"]
@@ -201,6 +198,7 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
                 else:
                     nick = f"{nick}**"
 
+            # Ограничение длины ника
             nick_display = nick[:25]
             line = f"{place:>2}. {nick_display:<25} {p['points']:>6}    {payout:>4}$"
             lines.append(line)
