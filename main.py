@@ -194,7 +194,7 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
 
     # Шаг 1: определяем максимальную длину ника (с учётом @ или ***)
     max_nick_len = 0
-    processed_players = []  # Для хранения обработанных ников
+    processed_players = []
 
     for p in players:
         nick = p['nick_name']
@@ -207,31 +207,35 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         else:
             display_nick = nick
 
-        # Сохраняем обработанный ник для дальнейшего использования
+        # Сохраняем обработанный ник и его длину
+        nick_length = len(display_nick)
+        max_nick_len = max(max_nick_len, nick_length)
+
         processed_players.append({
             **p,
-            'display_nick': display_nick
+            'display_nick': display_nick,
+            'nick_length': nick_length
         })
 
-        # Обновляем максимальную длину
-        max_nick_len = max(max_nick_len, len(display_nick))
-
-    # Добавляем 4 пробела к максимальной длине ника
-    nick_column_width = max_nick_len + 4
-
-    # Шаг 2: формируем строки с новым форматированием
+    # Шаг 2: формируем строки с динамическим отступом
     lines = []
     for p in processed_players:
         place = p['place']
         payout = payout_data.get(place, 0)
         points = p['points']
         display_nick = p['display_nick']
+        nick_length = p['nick_length']
 
         try:
-            # Форматирование строки: место + ник (с фиксированной шириной) + очки + деньги
+            # Рассчитываем динамический отступ: 4 пробела + разница с самым длинным ником
+            dynamic_padding = 4 + (max_nick_len - nick_length)
+            padding_str = ' ' * dynamic_padding
+
+            # Форматирование строки: место + ник + динамический отступ + очки + деньги
             line = (
                 f"{place:>2}. "
-                f"{display_nick:<{nick_column_width}}"
+                f"{display_nick}"
+                f"{padding_str}"
                 f"{points:>8.2f}    "
                 f"${payout:>4}"
             )
@@ -241,7 +245,6 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
             continue
 
     return "\n".join(lines) if lines else None
-
 
 
 
