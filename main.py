@@ -96,7 +96,7 @@ def get_utc_date_time_slot():
     start = (now.hour // 4) * 4
     time_slot = f"{start:02d}-{(start + 4):02d}"
     return date_str, time_slot
-    
+
 def get_leaderboard(board_type_api):
     date_str, time_slot = get_utc_date_time_slot()
 
@@ -127,14 +127,10 @@ def get_leaderboard(board_type_api):
                     try:
                 response_data = r.json()
                 logger.info(f"Получен ответ: {response_data}")
-                # Извлекаем данные и явно присваиваем place
                 raw_players = response_data.get("data", {}).get("data", [])
                 players_with_place = []
                 for i, player in enumerate(raw_players, start=1):
-                    players_with_place.append({
-                **player,
-                "place": i  # Явно присваиваем место
-            })
+                    players_with_place.append({**player, "place": i})
                 return players_with_place
             except ValueError as e:
                 logger.error(f"Не удалось декодировать JSON: {e}, ответ: {r.text}")
@@ -144,8 +140,11 @@ def get_leaderboard(board_type_api):
         logger.warning(f"Попытка {attempt + 1} API вернул код {r.status_code}: {r.text}")
 except requests.exceptions.RequestException as e:
     logger.error(f"Попытка {attempt + 1} ошибка сети: {e}, URL: {COINPOKER_URL}, данные: {data}")
-time.sleep(2)
-return []
+    time.sleep(2)
+    return []
+
+    
+
 
 
 
