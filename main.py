@@ -372,7 +372,7 @@ async def leaderboard(ctx):
 
     msg = "```\n"
     msg += format_leaderboard(
-        "🏆 High leaderboard (TOP 10)",
+        "🥇 High leaderboard (TOP 10)",
         new_high,
         my_nicks,
         time_slot=time_slot,
@@ -440,7 +440,7 @@ async def coloredleaderboard(ctx):
                 high_text = "(нет данных)"
 
         embed.add_field(
-            name="🏆 High leaderboard (TOP 10)",
+            name="🥇 High leaderboard (TOP 10)",
             value=high_text,
             inline=False
         )
