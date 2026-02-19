@@ -96,6 +96,7 @@ def get_utc_date_time_slot():
     start = (now.hour // 4) * 4
     time_slot = f"{start:02d}-{(start + 4):02d}"
     return date_str, time_slot
+    
 def get_leaderboard(board_type_api):
     date_str, time_slot = get_utc_date_time_slot()
 
@@ -145,6 +146,7 @@ except requests.exceptions.RequestException as e:
     logger.error(f"Попытка {attempt + 1} ошибка сети: {e}, URL: {COINPOKER_URL}, данные: {data}")
 time.sleep(2)
 return []
+
 
 
 
