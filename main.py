@@ -176,23 +176,26 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     if not players:
         return None
 
-    # Отладочная проверка наличия place
-    missing_place = [p['nick_name'] for p in players if 'place' not in p]
+    # ДИАГНОСТИКА: проверяем наличие place у всех игроков
+    missing_place = []
+    for i, p in enumerate(players):
+        if 'place' not in p:
+            missing_place.append(f"{i+1}:{p['nick_name']}")
     if missing_place:
-        logger.warning(f"У игроков отсутствуют поля 'place': {missing_place}")
-        # При отсутствии place присваиваем порядковые номера
+        logger.error(f"У игроков отсутствуют поля 'place': {missing_place}")
+        # Восстанавливаем place, если его нет
         for i, p in enumerate(players, start=1):
             if 'place' not in p:
                 p['place'] = i
 
-    # Сортируем по place
+    # Сортируем по place для гарантии правильного порядка
     players = sorted(players, key=lambda x: x['place'])
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     if not payout_data:
         payout_data = {}
 
-    # Шаг 1: определяем максимальную длину ника (с учётом @ или ***)
+    # Шаг 1: определяем максимальную длину ника (с учётом @)
     max_nick_len = 0
     processed_players = []
 
@@ -207,7 +210,6 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         else:
             display_nick = nick
 
-        # Сохраняем обработанный ник и его длину
         nick_length = len(display_nick)
         max_nick_len = max(max_nick_len, nick_length)
 
@@ -231,7 +233,6 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
             dynamic_padding = 4 + (max_nick_len - nick_length)
             padding_str = ' ' * dynamic_padding
 
-            # Форматирование строки: место + ник + динамический отступ + очки + деньги
             line = (
                 f"{place:>2}. "
                 f"{display_nick}"
@@ -245,7 +246,6 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
             continue
 
     return "\n".join(lines) if lines else None
-
 
 
 @bot.event
@@ -409,21 +409,20 @@ async def coloredleaderboard(ctx):
 
     # High leaderboard
     high = get_leaderboard("high-4hr")
-    for i, player in enumerate(high, start=1):
-        player["place"] = i
+    # НЕ перезаписываем place — используем данные из API
     top10 = high[:10]
     top10_names = {p["nick_name"] for p in top10}
     my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
     new_high = top10 + my_outside_top
-
+    
     # Low leaderboard
     low = get_leaderboard("low-4hr")
-    for i, player in enumerate(low, start=1):
-        player["place"] = i
+    # НЕ перезаписываем place — используем данные из API
     top15 = low[:15]
     top15_names = {p["nick_name"] for p in top15}
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
+
 
     embed = Embed(
         title="🏆 Лидерборд CoinPoker",
