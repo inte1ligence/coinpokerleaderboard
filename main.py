@@ -176,8 +176,14 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     if not players:
         return None
 
-    # Сортируем игроков по полю 'place' перед обработкой
-    players = sorted(players, key=lambda x: x["place"])
+    # Отладочная печать — проверьте, есть ли place у игроков
+    print("Отладка: проверка наличия поля 'place' у игроков")
+    for i, p in enumerate(players):
+        if "place" not in p:
+            print(f"ВНИМАНИЕ: у игрока {p['nick_name']} отсутствует поле 'place'")
+
+    # Сортируем игроков по полю 'place' — это критично!
+    players = sorted(players, key=lambda x: x.get("place", float("inf")))
 
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     if not payout_data:
@@ -186,6 +192,10 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     lines = []
 
     for p in players:
+        # Явная проверка наличия place
+        if "place" not in p:
+            logger.error(f"Пропущен игрок {p['nick_name']}: отсутствует поле 'place'")
+            continue
         place = p["place"]
         payout = payout_data.get(place, 0)
         nick = p["nick_name"]
@@ -196,17 +206,19 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
                 if role:
                     nick = role.mention
                 else:
-                    nick = f"{nick}**"
+                    nick = f"@{nick}"  # Добавляем @ вместо ***
 
             # Ограничение длины ника
             nick_display = nick[:25]
-            line = f"{place:>2}. {nick_display:<25} {p['points']:>6}    {payout:>4}$"
+            # Форматирование строки с place
+            line = f"{place:>2}. {nick_display:<25} {p['points']:>8.2f}    {payout:>4}$"
             lines.append(line)
         except Exception as e:
             logger.error(f"Ошибка при обработке игрока {nick}: {e}")
             continue
 
     return "\n".join(lines) if lines else None
+
 
 
 
