@@ -134,20 +134,17 @@ def get_leaderboard(board_type_api):
                 return players_with_place
             except ValueError as e:
                 logger.error(f"Не удалось декодировать JSON: {e}, ответ: {r.text}")
+                continue
         else:
             logger.error(f"Ответ не JSON: Content-Type={content_type}, текст: {r.text}")
+            continue
     else:
         logger.warning(f"Попытка {attempt + 1} API вернул код {r.status_code}: {r.text}")
+        continue
 except requests.exceptions.RequestException as e:
     logger.error(f"Попытка {attempt + 1} ошибка сети: {e}, URL: {COINPOKER_URL}, данные: {data}")
     time.sleep(2)
     return []
-
-    
-
-
-
-
 
 def format_leaderboard(title, players, my_nicks, time_slot, board_type):
     if not players:
