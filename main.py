@@ -199,7 +199,7 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
 
             # Ограничение длины ника для предотвращения перекоса таблицы
             nick_display = nick[:25]  # Макс. 25 символов
-            line = f"{place:>2}. {nick_display:<25} {p['points']:>6} pts ${payout:>4}"
+            line = f"{place:>2}. {nick_display:<25} {p['points']:>6}    {payout:>4}$"
             lines.append(line)
         except Exception as e:
             logger.error(f"Ошибка при обработке игрока {nick}: {e}")
