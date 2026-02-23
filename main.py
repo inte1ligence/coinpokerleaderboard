@@ -355,7 +355,7 @@ async def leaderboard(ctx):
     high = get_leaderboard("high-4hr")
     for i, player in enumerate(high, start=1):
         player["place"] = i
-    top10 = high[:10]
+    top10 = high[:11]
     top10_names = {p["nick_name"] for p in top10}
     my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
     new_high = top10 + my_outside_top
@@ -364,7 +364,7 @@ async def leaderboard(ctx):
     low = get_leaderboard("low-4hr")
     for i, player in enumerate(low, start=1):
         player["place"] = i
-    top15 = low[:15]
+    top15 = low[:16]
     top15_names = {p["nick_name"] for p in top15}
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
@@ -410,7 +410,7 @@ async def coloredleaderboard(ctx):
     # High leaderboard
     high = get_leaderboard("high-4hr")
     # НЕ перезаписываем place — используем данные из API
-    top10 = high[:10]
+    top10 = high[:11]
     top10_names = {p["nick_name"] for p in top10}
     my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
     new_high = top10 + my_outside_top
@@ -418,7 +418,7 @@ async def coloredleaderboard(ctx):
     # Low leaderboard
     low = get_leaderboard("low-4hr")
     # НЕ перезаписываем place — используем данные из API
-    top15 = low[:15]
+    top15 = low[:16]
     top15_names = {p["nick_name"] for p in top15}
     my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
     new_low = top15 + my_outside_top
