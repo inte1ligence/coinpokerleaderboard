@@ -139,10 +139,11 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         return None
     payout_data = payouts.get(time_slot, {}).get(board_type, {})    
     
-    # 1. Находим длину самого длинного ника (чистый текст)
-    # Прибавляем 1 для обязательного пробела после самого длинного ника
-    max_nick_len = max(len(p['nick_name']) for p in players) + 1    
+    # 1. Находим длину самого длинного ника
+    # Поинты будут стоять максимально близко (+1 пробел) именно к этому нику
+    max_n_len = max(len(p['nick_name']) for p in players)
     
+    # Специальный пробел (En Space), который Discord не схлопывает
     EN_SPACE = " "
     lines = []    
 
@@ -153,32 +154,33 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         payout = payout_data.get(place, 0)
 
         # Выравнивание места (1. vs 10.)
-        place_str = f"{place}." if int(place) >= 10 else f"{place}.{EN_SPACE}"
+        # Добавляем пробел перед цифрой, если она меньше 10
+        place_str = f"{place}." if int(place) >= 10 else f"{EN_SPACE}{place}."
 
-        # 2. Выравнивание НИКА (убираем лишние пробелы, прижимая поинты к самому длинному нику)
-        # padding рассчитывается так, чтобы поинты начинались сразу после самого длинного ника
-        nick_padding = EN_SPACE * (max_nick_len - len(nick))
+        # 2. Выравнивание НИКА
+        # Рассчитываем количество пробелов: (Разница с макс. ником) + 1 обязательный
+        padding_count = (max_n_len - len(nick)) + 1
+        nick_padding = EN_SPACE * padding_count
         
         if nick in my_nicks:
             role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-            # Mention не ломает длину, так как визуально он равен нику (обычно)
+            # Mention визуально занимает столько же места, сколько и текст ника
             display_nick = f"{role.mention}{nick_padding}" if role else f"**{nick}**{nick_padding}"
         else:
             display_nick = f"{nick}{nick_padding}"
 
-        # 3. Выравнивание ПОИНТОВ (пробелы СЗАДИ, чтобы выплаты были ровными)
+        # 3. Выравнивание ПОИНТОВ (пробелы СЗАДИ)
+        # Это гарантирует, что выплаты ($) тоже будут в один ряд
         pts_formatted = f"{points_val:.2f}"
-        # Вычисляем отступ от макс. возможного числа 1111.11 (7 символов)
-        points_padding = EN_SPACE * (7 - len(pts_formatted))
-        display_points = f"{pts_formatted}{points_padding}"
+        pts_padding = EN_SPACE * (7 - len(pts_formatted)) # 7 — длина "1111.11"
+        display_points = f"{pts_formatted}{pts_padding}"
 
-        # Собираем строку (тире убрал, как в вашем последнем примере)
+        # Собираем строку: " 1. Nick      123.45   $100"
         line = f"{place_str} {display_nick} {display_points} **${payout}**"
         lines.append(line)
 
     result = "\n".join(lines)    
     return result[:990] + "..." if len(result) > 1000 else result
-
 
 
 
