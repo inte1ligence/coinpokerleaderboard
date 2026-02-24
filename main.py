@@ -291,7 +291,7 @@ async def test_api(ctx):
 
 
 
-@bot.command(name="l", aliases=["д"])
+
 async def leaderboard(ctx):
     my_nicks_str = os.getenv("MY_NICKNAMES")
     if my_nicks_str:
@@ -346,14 +346,14 @@ async def leaderboard(ctx):
 
     await ctx.send(msg)
 
-@bot.command(name="k", aliases=["л"])
-async def coloredleaderboard(ctx):
+# --- НОВАЯ ФУНКЦИЯ: Единая логика формирования и отправки ---
+async def send_leaderboard_logic(destination, guild):
+    """
+    destination: объект ctx.channel или просто channel
+    guild: объект гильдии (нужен для ролей)
+    """
     my_nicks_str = os.getenv("MY_NICKNAMES")
-    if my_nicks_str:
-        my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
-    else:
-        my_nicks = []
-        logger.warning("MY_NICKNAMES не задан в окружении")
+    my_nicks = [nick.strip() for nick in my_nicks_str.split(",")] if my_nicks_str else []
 
     date_str, time_slot = get_utc_date_time_slot()
 
@@ -361,75 +361,86 @@ async def coloredleaderboard(ctx):
     high = get_leaderboard("high-4hr")
     for i, player in enumerate(high, start=1):
         player["place"] = i
-    # НЕ перезаписываем place — используем данные из API
     top10 = high[:11]
     top10_names = {p["nick_name"] for p in top10}
-    my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
-    new_high = top10 + my_outside_top
+    my_outside_top_high = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
+    new_high = top10 + my_outside_top_high
     
     # Low leaderboard
     low = get_leaderboard("low-4hr")
     for i, player in enumerate(low, start=1):
         player["place"] = i
-    # НЕ перезаписываем place — используем данные из API
     top15 = low[:16]
     top15_names = {p["nick_name"] for p in top15}
-    my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
-    new_low = top15 + my_outside_top
-
+    my_outside_top_low = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
+    new_low = top15 + my_outside_top_low
 
     embed = Embed(
-        title="🏆 Лидерборд CoinPoker",
+        title=f"🏆 Лидерборд CoinPoker ({time_slot})",
         colour=Colour.from_rgb(30, 144, 255),
         timestamp=datetime.now(timezone.utc)
     )
 
     try:
-        # Проверка на пустые данные
-        if not new_high:
-            high_text = "(нет данных)"
-        else:
-            high_text = format_leaderboard_with_roles(new_high, my_nicks, time_slot, "high_leaderboard", ctx.guild)
-            if not high_text:
-                high_text = "(нет данных)"
+        high_text = format_leaderboard_with_roles(new_high, my_nicks, time_slot, "high_leaderboard", guild)
+        embed.add_field(name="🥇 High leaderboard (TOP 10)", value=high_text or "(нет данных)", inline=False)
 
-        embed.add_field(
-            name="🥇 High leaderboard (TOP 10)",
-            value=high_text,
-            inline=False
-        )
-
-        if not new_low:
-            low_text = "(нет данных)"
-        else:
-            low_text = format_leaderboard_with_roles(new_low, my_nicks, time_slot, "low_leaderboard", ctx.guild)
-            if not low_text:
-                low_text = "(нет данных)"
-
-        embed.add_field(
-            name="🥈 Low leaderboard (TOP 15)",
-            value=low_text,
-            inline=False
-        )
+        low_text = format_leaderboard_with_roles(new_low, my_nicks, time_slot, "low_leaderboard", guild)
+        embed.add_field(name="🥈 Low leaderboard (TOP 15)", value=low_text or "(нет данных)", inline=False)
 
         if my_nicks:
             embed.set_footer(text="⭐ — ваши участники (выделены цветом роли)")
-
+        
+        await destination.send(embed=embed)
     except Exception as e:
         logger.error(f"Ошибка при формировании Embed: {e}")
-        await ctx.send("Произошла ошибка при формировании лидерборда.")
-        return  # Явное завершение команды
 
-    await ctx.send(embed=embed)
-
-
+# --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
+async def schedule_end_of_slot_update(slot_id, guild_id):
+    global target_channel_id    
+    now = datetime.now(timezone.utc)
     
+    # Вычисляем конец 4-часового слота
+    next_slot_hour = (now.hour // 4 + 1) * 4    
+    target = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=(next_slot_hour - now.hour))
+    target -= timedelta(seconds=15) # За 15 секунд до конца
+    
+    wait_seconds = (target - now).total_seconds()    
+    
+    if wait_seconds > 0:
+        await asyncio.sleep(wait_seconds)        
+        
+        channel = bot.get_channel(target_channel_id)
+        guild = bot.get_guild(guild_id)
+        if channel and guild:
+            await channel.send("📢 **Итоговый отчет за текущий слот:**")
+            await send_leaderboard_logic(channel, guild)
 
-# Запуск бота
+# --- ОБНОВЛЕННАЯ КОМАНДА ---
+@bot.command(name="k", aliases=["л", "l", "д"])
+async def coloredleaderboard(ctx):
+    global last_scheduled_slot, target_channel_id    
+    
+    # 1. Сразу выдаем текущий лидерборд
+    await send_leaderboard_logic(ctx.channel, ctx.guild)
+    
+    # 2. Логика планирования авто-отчета
+    date_str, time_slot = get_utc_date_time_slot()
+    current_slot_id = f"{date_str}_{time_slot}"    
+    
+    if last_scheduled_slot != current_slot_id:
+        last_scheduled_slot = current_slot_id
+        target_channel_id = ctx.channel.id
+        
+        # Запускаем фоновый таймер
+        asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id))
+        logger.info(f"Таймер запущен для слота {time_slot}. Выполнится в {current_slot_id} :59:45")
+
+# Запуск бота (без изменений)
 if __name__ == "__main__":
     token = os.getenv("DISCORD_TOKEN")
     if not token:
-        logger.error("Токен Discord не найден в переменной окружения DISCORD_TOKEN")
+        logger.error("Токен Discord не найден")
         sys.exit(1)
     bot.run(token)
 
