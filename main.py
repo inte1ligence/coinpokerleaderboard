@@ -137,29 +137,50 @@ def get_leaderboard(board_type_api):
 def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
     if not players:
         return None
+
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
+    
+    # Находим максимальную длину ника + 1 пробел
+    max_nick_len = max(len(p['nick_name']) for p in players) + 1
+    
+    # Специальный пробел для выравнивания (Unicode En Space)
+    # Он шире обычного и помогает держать структуру без блоков кода
+    EN_SPACE = " " 
+
     lines = []    
     for p in players:
-        # Гарантируем наличие места (если его нет в объекте p)
-        place = p.get('place', '?')
+        place = str(p.get('place', '?'))
         nick = p['nick_name']
-        points = p['points']
+        points_val = p['points']
         payout = payout_data.get(place, 0)
+
+        # 1. Выравнивание места (чтобы 1. и 10. не смещались)
+        place_str = f"{place}." if int(place) >= 10 else f"{place}.{EN_SPACE}"
+
+        # 2. Выравнивание ника (пробелы в конце)
+        nick_padding = EN_SPACE * (max_nick_len - len(nick))
         if nick in my_nicks:
             role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-            # Используем mention только если роль реально существует
-            display_nick = role.mention if role else f"**{nick}**"
+            display_nick = f"{role.mention}{nick_padding}" if role else f"**{nick}**{nick_padding}"
         else:
-            display_nick = nick
-        # Компактный формат для Embed, чтобы влезть в лимиты
-        line = f"`{place:>2}.` {display_nick} — `{points:.2f}` — **${payout}**"
+            display_nick = f"{nick}{nick_padding}"
+
+        # 3. Выравнивание поинтов (пробелы в конце)
+        # Форматируем до 2 знаков, считаем длину, добавляем пробелы до длины "1111.11" (7 символов)
+        pts_formatted = f"{points_val:.2f}"
+        points_padding = EN_SPACE * (7 - len(pts_formatted))
+        display_points = f"{pts_formatted}{points_padding}"
+
+        # Собираем строку БЕЗ обратных кавычек
+        line = f"{place_str} {display_nick} — {display_points} — **${payout}**"
         lines.append(line)
-    # Собираем строки
+
     result = "\n".join(lines)    
-    # Защита от превышения лимита Discord (1024 символа для Field)
+    
     if len(result) > 1000:
         return result[:990] + "..."
     return result
+
 
 
 @bot.event
