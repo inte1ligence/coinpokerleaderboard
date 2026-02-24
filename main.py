@@ -138,46 +138,48 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     if not players:
         return None
     payout_data = payouts.get(time_slot, {}).get(board_type, {})    
-    # 1. Находим макс длину ника
+    
+    # 1. Находим длину самого длинного ника (чистый текст)
+    # Прибавляем 1 для обязательного пробела после самого длинного ника
     max_nick_len = max(len(p['nick_name']) for p in players) + 1    
+    
+    EN_SPACE = " "
     lines = []    
+
     for p in players:
-        # Получаем данные, преобразуем место в число для сравнения
-        raw_place = p.get('place', '?')
-        place_int = int(raw_place) if str(raw_place).isdigit() else 999
+        place = str(p.get('place', '?'))
         nick = p['nick_name']
         points_val = p['points']
-        payout = payout_data.get(str(raw_place), 0)
+        payout = payout_data.get(place, 0)
 
-        # Форматирование номера: " 1." или "10." (ровняем по правому краю)
-        place_str = f"{raw_place:>2}."
+        # Выравнивание места (1. vs 10.)
+        place_str = f"{place}." if int(place) >= 10 else f"{place}.{EN_SPACE}"
 
-        # Выравнивание ника обычными пробелами
-        padding = " " * (max_nick_len - len(nick))
+        # 2. Выравнивание НИКА (убираем лишние пробелы, прижимая поинты к самому длинному нику)
+        # padding рассчитывается так, чтобы поинты начинались сразу после самого длинного ника
+        nick_padding = EN_SPACE * (max_nick_len - len(nick))
         
         if nick in my_nicks:
             role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-            # Если это роль, используем mention, если нет — жирный текст
-            display_nick = f"{role.mention}{padding}" if role else f"**{nick}**{padding}"
+            # Mention не ломает длину, так как визуально он равен нику (обычно)
+            display_nick = f"{role.mention}{nick_padding}" if role else f"**{nick}**{nick_padding}"
         else:
-            display_nick = f"{nick}{padding}"
+            display_nick = f"{nick}{nick_padding}"
 
-        # 2. Поинты: ровно 7 символов (1111.11), пробелы в конце
-        pts_str = f"{points_val:.2f}"
-        pts_padding = " " * (7 - len(pts_str))
-        display_points = f"{pts_str}{pts_padding}"
+        # 3. Выравнивание ПОИНТОВ (пробелы СЗАДИ, чтобы выплаты были ровными)
+        pts_formatted = f"{points_val:.2f}"
+        # Вычисляем отступ от макс. возможного числа 1111.11 (7 символов)
+        points_padding = EN_SPACE * (7 - len(pts_formatted))
+        display_points = f"{pts_formatted}{points_padding}"
 
-        # 3. Собираем финальную строку
-        # Используем один блок кода только для цифр, чтобы они были моноширинными
-        # Либо просто текст. Попробуем через f-строку без лишних знаков:
-        line = f"`{place_str}` {display_nick} — `{display_points}` — **${payout}**"
+        # Собираем строку (тире убрал, как в вашем последнем примере)
+        line = f"{place_str} {display_nick} {display_points} **${payout}**"
         lines.append(line)
 
     result = "\n".join(lines)    
-    
-    if len(result) > 1000:
-        return result[:990] + "..."
-    return result
+    return result[:990] + "..." if len(result) > 1000 else result
+
+
 
 
 @bot.event
@@ -307,10 +309,10 @@ async def send_leaderboard_logic(destination, guild):
     )
     try:
         high_text = format_leaderboard_with_roles(new_high, my_nicks, time_slot, "high_leaderboard", guild)
-        embed.add_field(name="🥇 High leaderboard (TOP 10)", value=high_text or "(нет данных)", inline=False)
+        embed.add_field(name="High leaderboard", value=high_text or "(нет данных)", inline=False)
 
         low_text = format_leaderboard_with_roles(new_low, my_nicks, time_slot, "low_leaderboard", guild)
-        embed.add_field(name="🥈 Low leaderboard (TOP 15)", value=low_text or "(нет данных)", inline=False)
+        embed.add_field(name="Low leaderboard", value=low_text or "(нет данных)", inline=False)
 
         if my_nicks:
             embed.set_footer(text="⭐ — ваши участники (выделены цветом роли)")
