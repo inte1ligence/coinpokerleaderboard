@@ -188,20 +188,22 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     processed_players = []
     for p in players:
         nick = p['nick_name']
+        place = p.get('place', '?') # Берем уже готовый place        
         if nick in my_nicks:
             role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-            if role:
-                display_nick = role.mention
-            else:
-                display_nick = f"@{nick}"
+            display_nick = role.mention if role else f"@{nick}"
+            # Для отступа используем длину чистого имени, так как mention в Discord 
+            # визуально занимает столько же места, сколько текст роли
+            calc_len = len(nick) + 1 
         else:
             display_nick = nick
-        nick_length = len(display_nick)
-        max_nick_len = max(max_nick_len, nick_length)
+            calc_len = len(nick)
+        max_display_len = max(max_display_len, calc_len)
         processed_players.append({
             **p,
             'display_nick': display_nick,
-            'nick_length': nick_length
+            'calc_len': calc_len,
+            'place': place
         })
     # Шаг 2: формируем строки с динамическим отступом
     lines = []
@@ -210,22 +212,16 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         payout = payout_data.get(place, 0)
         points = p['points']
         display_nick = p['display_nick']
-        nick_length = p['nick_length']
-        try:
-            # Рассчитываем динамический отступ: 4 пробела + разница с самым длинным ником
-            dynamic_padding = 4 + (max_nick_len - nick_length)
-            padding_str = ' ' * dynamic_padding
-            line = (
-                f"{place:>2}. "
-                f"{display_nick}"
-                f"{padding_str}"
-                f"{points:>8.2f}    "
-                f"${payout:>4}"
-            )
-            lines.append(line)
-        except Exception as e:
-            logger.error(f"Ошибка при обработке игрока {display_nick}: {e}")
-            continue
+        
+        # Динамический отступ (используем разницу длин)
+        padding = " " * (max_display_len - p['calc_len'] + 4)
+        
+        line = (
+            f"**{place}.** {display_nick}{padding}"
+            f"`{points:>8.2f}`    "
+            f"**${payout}**"
+        )
+        lines.append(line)
     return "\n".join(lines) if lines else None
 
 
