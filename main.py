@@ -137,50 +137,29 @@ def get_leaderboard(board_type_api):
 def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
     if not players:
         return None
-    payout_data = payouts.get(time_slot, {}).get(board_type, {})    
-    
-    # 1. Находим длину самого длинного ника
-    # Поинты будут стоять максимально близко (+1 пробел) именно к этому нику
-    max_n_len = max(len(p['nick_name']) for p in players)
-    
-    # Специальный пробел (En Space), который Discord не схлопывает
-    EN_SPACE = " "
+    payout_data = payouts.get(time_slot, {}).get(board_type, {})
     lines = []    
-
     for p in players:
-        place = str(p.get('place', '?'))
+        # Гарантируем наличие места (если его нет в объекте p)
+        place = p.get('place', '?')
         nick = p['nick_name']
-        points_val = p['points']
+        points = p['points']
         payout = payout_data.get(place, 0)
-
-        # Выравнивание места (1. vs 10.)
-        # Добавляем пробел перед цифрой, если она меньше 10
-        place_str = f"{place}." if int(place) >= 10 else f"{EN_SPACE}{place}."
-
-        # 2. Выравнивание НИКА
-        # Рассчитываем количество пробелов: (Разница с макс. ником) + 1 обязательный
-        padding_count = (max_n_len - len(nick)) + 1
-        nick_padding = EN_SPACE * padding_count
-        
         if nick in my_nicks:
             role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-            # Mention визуально занимает столько же места, сколько и текст ника
-            display_nick = f"{role.mention}{nick_padding}" if role else f"**{nick}**{nick_padding}"
+            # Используем mention только если роль реально существует
+            display_nick = role.mention if role else f"**{nick}**"
         else:
-            display_nick = f"{nick}{nick_padding}"
-
-        # 3. Выравнивание ПОИНТОВ (пробелы СЗАДИ)
-        # Это гарантирует, что выплаты ($) тоже будут в один ряд
-        pts_formatted = f"{points_val:.2f}"
-        pts_padding = EN_SPACE * (7 - len(pts_formatted)) # 7 — длина "1111.11"
-        display_points = f"{pts_formatted}{pts_padding}"
-
-        # Собираем строку: " 1. Nick      123.45   $100"
-        line = f"{place_str} {display_nick} {display_points} **${payout}**"
+            display_nick = nick
+        # Компактный формат для Embed, чтобы влезть в лимиты
+        line = f"`{place:>2}.` {display_nick} — `{points:.2f}` — **${payout}**"
         lines.append(line)
-
+    # Собираем строки
     result = "\n".join(lines)    
-    return result[:990] + "..." if len(result) > 1000 else result
+    # Защита от превышения лимита Discord (1024 символа для Field)
+    if len(result) > 1000:
+        return result[:990] + "..."
+    return result
 
 
 
