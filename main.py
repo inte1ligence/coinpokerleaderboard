@@ -6,7 +6,6 @@ from discord import (
     utils,
     Role
 )
-
 import requests
 from datetime import datetime, timezone
 from typing import List, Dict, Optional
@@ -19,20 +18,18 @@ print(sys.version)
 print("Окружение:", os.environ)
 print("MY_NICKNAMES:", os.getenv("MY_NICKNAMES"))
 
-
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 intents = discord.Intents.default()
 intents.message_content = True  # ОБЯЗАТЕЛЬНО для !l
 intents.guilds = True
 intents.messages = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
-
 COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"  # ← Исправьте на "https://..."
-
+last_scheduled_slot = None
+target_channel_id = None 
 payouts = {
     "00-04": {
         "high_leaderboard": {
@@ -90,6 +87,7 @@ payouts = {
     }
 }
 
+
 def get_utc_date_time_slot():
     now = datetime.now(timezone.utc)  # вместо utcnow()
     date_str = now.strftime("%Y-%m-%d")
@@ -97,16 +95,14 @@ def get_utc_date_time_slot():
     time_slot = f"{start:02d}-{(start + 4):02d}"
     return date_str, time_slot
 
+
 def get_leaderboard(board_type_api):
     date_str, time_slot = get_utc_date_time_slot()
-
     # Сопоставление типов для API и payouts
     board_type_payout = {
         "high-4hr": "high_leaderboard",
         "low-4hr": "low_leaderboard"
     }.get(board_type_api, board_type_api)
-
-
     data = {
         "action": "get_current_leaderboard_ajax",
         "date": date_str,
@@ -114,15 +110,12 @@ def get_leaderboard(board_type_api):
         "leaderboard": board_type_api
     }
     logger.info(f"Отправляю запрос к API: {data}")
-
     for attempt in range(3):
         try:
             r = requests.post(COINPOKER_URL, data=data, timeout=20)
-
             if len(r.content) > 1_000_000:
                 logger.error("Ответ API слишком большой (>1 МБ)")
                 return []
-
             if r.status_code == 200:
                 content_type = r.headers.get("Content-Type", "")
                 if "application/json" in content_type:
@@ -166,16 +159,14 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
             f"{nick_display:<{max_nick_len}}  "
             f"{p['points']:<{max_points_len}}  "
             f"${payout}"
-        )       
-
+        )
         lines.append(line)
-
     return "\n".join(lines)
+
 
 def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
     if not players:
         return None
-
     # ДИАГНОСТИКА: проверяем наличие place у всех игроков
     missing_place = []
     for i, p in enumerate(players):
@@ -187,18 +178,14 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         for i, p in enumerate(players, start=1):
             if 'place' not in p:
                 p['place'] = i
-
     # Сортируем по place для гарантии правильного порядка
-    players = sorted(players, key=lambda x: x['place'])
-
+    #players = sorted(players, key=lambda x: x['place'])
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
     if not payout_data:
         payout_data = {}
-
     # Шаг 1: определяем максимальную длину ника (с учётом @)
     max_nick_len = 0
     processed_players = []
-
     for p in players:
         nick = p['nick_name']
         if nick in my_nicks:
@@ -209,16 +196,13 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
                 display_nick = f"@{nick}"
         else:
             display_nick = nick
-
         nick_length = len(display_nick)
         max_nick_len = max(max_nick_len, nick_length)
-
         processed_players.append({
             **p,
             'display_nick': display_nick,
             'nick_length': nick_length
         })
-
     # Шаг 2: формируем строки с динамическим отступом
     lines = []
     for p in processed_players:
@@ -227,12 +211,10 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         points = p['points']
         display_nick = p['display_nick']
         nick_length = p['nick_length']
-
         try:
             # Рассчитываем динамический отступ: 4 пробела + разница с самым длинным ником
             dynamic_padding = 4 + (max_nick_len - nick_length)
             padding_str = ' ' * dynamic_padding
-
             line = (
                 f"{place:>2}. "
                 f"{display_nick}"
@@ -244,7 +226,6 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
         except Exception as e:
             logger.error(f"Ошибка при обработке игрока {display_nick}: {e}")
             continue
-
     return "\n".join(lines) if lines else None
 
 
