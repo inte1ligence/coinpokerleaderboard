@@ -168,16 +168,16 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     if not players:
         return None
     # ДИАГНОСТИКА: проверяем наличие place у всех игроков
-    missing_place = []
-    for i, p in enumerate(players):
-        if 'place' not in p:
-            missing_place.append(f"{i+1}:{p['nick_name']}")
-    if missing_place:
-        logger.error(f"У игроков отсутствуют поля 'place': {missing_place}")
+    #missing_place = []
+    #for i, p in enumerate(players):
+    #    if 'place' not in p:
+    #        missing_place.append(f"{i+1}:{p['nick_name']}")
+    #if missing_place:
+    #   logger.error(f"У игроков отсутствуют поля 'place': {missing_place}")
         # Восстанавливаем place, если его нет
-        for i, p in enumerate(players, start=1):
-            if 'place' not in p:
-                p['place'] = i
+    #    for i, p in enumerate(players, start=1):
+    #        if 'place' not in p:
+    #            p['place'] = i
     # Сортируем по place для гарантии правильного порядка
     #players = sorted(players, key=lambda x: x['place'])
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
