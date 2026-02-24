@@ -167,62 +167,35 @@ def format_leaderboard(title, players, my_nicks, time_slot, board_type):
 def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
     if not players:
         return None
-    # ДИАГНОСТИКА: проверяем наличие place у всех игроков
-    #missing_place = []
-    #for i, p in enumerate(players):
-    #    if 'place' not in p:
-    #        missing_place.append(f"{i+1}:{p['nick_name']}")
-    #if missing_place:
-    #   logger.error(f"У игроков отсутствуют поля 'place': {missing_place}")
-        # Восстанавливаем place, если его нет
-    #    for i, p in enumerate(players, start=1):
-    #        if 'place' not in p:
-    #            p['place'] = i
-    # Сортируем по place для гарантии правильного порядка
-    #players = sorted(players, key=lambda x: x['place'])
+
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    if not payout_data:
-        payout_data = {}
-    # Шаг 1: определяем максимальную длину ника (с учётом @)
-    max_nick_len = 0
-    processed_players = []
+    lines = []
+    
     for p in players:
+        # Гарантируем наличие места (если его нет в объекте p)
+        place = p.get('place', '?')
         nick = p['nick_name']
-        place = p.get('place', '?') # Берем уже готовый place        
+        points = p['points']
+        payout = payout_data.get(place, 0)
+
         if nick in my_nicks:
             role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-            display_nick = role.mention if role else f"@{nick}"
-            # Для отступа используем длину чистого имени, так как mention в Discord 
-            # визуально занимает столько же места, сколько текст роли
-            calc_len = len(nick) + 1 
+            # Используем mention только если роль реально существует
+            display_nick = role.mention if role else f"**{nick}**"
         else:
             display_nick = nick
-            calc_len = len(nick)
-        max_display_len = max(max_display_len, calc_len)
-        processed_players.append({
-            **p,
-            'display_nick': display_nick,
-            'calc_len': calc_len,
-            'place': place
-        })
-    # Шаг 2: формируем строки с динамическим отступом
-    lines = []
-    for p in processed_players:
-        place = p['place']
-        payout = payout_data.get(place, 0)
-        points = p['points']
-        display_nick = p['display_nick']
-        
-        # Динамический отступ (используем разницу длин)
-        padding = " " * (max_display_len - p['calc_len'] + 4)
-        
-        line = (
-            f"**{place}.** {display_nick}{padding}"
-            f"`{points:>8.2f}`    "
-            f"**${payout}**"
-        )
+
+        # Компактный формат для Embed, чтобы влезть в лимиты
+        line = f"`{place:>2}.` {display_nick} — `{points:.2f}` — **${payout}**"
         lines.append(line)
-    return "\n".join(lines) if lines else None
+
+    # Собираем строки
+    result = "\n".join(lines)
+    
+    # Защита от превышения лимита Discord (1024 символа для Field)
+    if len(result) > 1000:
+        return result[:990] + "..."
+    return result
 
 
 @bot.event
@@ -386,6 +359,8 @@ async def coloredleaderboard(ctx):
 
     # High leaderboard
     high = get_leaderboard("high-4hr")
+    for i, player in enumerate(high, start=1):
+        player["place"] = i
     # НЕ перезаписываем place — используем данные из API
     top10 = high[:11]
     top10_names = {p["nick_name"] for p in top10}
@@ -394,6 +369,8 @@ async def coloredleaderboard(ctx):
     
     # Low leaderboard
     low = get_leaderboard("low-4hr")
+    for i, player in enumerate(low, start=1):
+        player["place"] = i
     # НЕ перезаписываем place — используем данные из API
     top15 = low[:16]
     top15_names = {p["nick_name"] for p in top15}
