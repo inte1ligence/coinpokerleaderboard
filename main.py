@@ -137,42 +137,40 @@ def get_leaderboard(board_type_api):
 def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
     if not players:
         return None
-
-    payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    
-    # Находим максимальную длину ника + 1 пробел
-    max_nick_len = max(len(p['nick_name']) for p in players) + 1
-    
-    # Специальный пробел для выравнивания (Unicode En Space)
-    # Он шире обычного и помогает держать структуру без блоков кода
-    EN_SPACE = " " 
-
+    payout_data = payouts.get(time_slot, {}).get(board_type, {})    
+    # 1. Находим макс длину ника
+    max_nick_len = max(len(p['nick_name']) for p in players) + 1    
     lines = []    
     for p in players:
-        place = str(p.get('place', '?'))
+        # Получаем данные, преобразуем место в число для сравнения
+        raw_place = p.get('place', '?')
+        place_int = int(raw_place) if str(raw_place).isdigit() else 999
         nick = p['nick_name']
         points_val = p['points']
-        payout = payout_data.get(place, 0)
+        payout = payout_data.get(str(raw_place), 0)
 
-        # 1. Выравнивание места (чтобы 1. и 10. не смещались)
-        place_str = f"{place}." if int(place) >= 10 else f"{place}.{EN_SPACE}"
+        # Форматирование номера: " 1." или "10." (ровняем по правому краю)
+        place_str = f"{raw_place:>2}."
 
-        # 2. Выравнивание ника (пробелы в конце)
-        nick_padding = EN_SPACE * (max_nick_len - len(nick))
+        # Выравнивание ника обычными пробелами
+        padding = " " * (max_nick_len - len(nick))
+        
         if nick in my_nicks:
             role = discord.utils.find(lambda r: r.name == nick, guild.roles)
-            display_nick = f"{role.mention}{nick_padding}" if role else f"**{nick}**{nick_padding}"
+            # Если это роль, используем mention, если нет — жирный текст
+            display_nick = f"{role.mention}{padding}" if role else f"**{nick}**{padding}"
         else:
-            display_nick = f"{nick}{nick_padding}"
+            display_nick = f"{nick}{padding}"
 
-        # 3. Выравнивание поинтов (пробелы в конце)
-        # Форматируем до 2 знаков, считаем длину, добавляем пробелы до длины "1111.11" (7 символов)
-        pts_formatted = f"{points_val:.2f}"
-        points_padding = EN_SPACE * (7 - len(pts_formatted))
-        display_points = f"{pts_formatted}{points_padding}"
+        # 2. Поинты: ровно 7 символов (1111.11), пробелы в конце
+        pts_str = f"{points_val:.2f}"
+        pts_padding = " " * (7 - len(pts_str))
+        display_points = f"{pts_str}{pts_padding}"
 
-        # Собираем строку БЕЗ обратных кавычек
-        line = f"{place_str} {display_nick} — {display_points} — **${payout}**"
+        # 3. Собираем финальную строку
+        # Используем один блок кода только для цифр, чтобы они были моноширинными
+        # Либо просто текст. Попробуем через f-строку без лишних знаков:
+        line = f"`{place_str}` {display_nick} — `{display_points}` — **${payout}**"
         lines.append(line)
 
     result = "\n".join(lines)    
@@ -180,7 +178,6 @@ def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guil
     if len(result) > 1000:
         return result[:990] + "..."
     return result
-
 
 
 @bot.event
