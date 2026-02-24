@@ -134,64 +134,28 @@ def get_leaderboard(board_type_api):
     return []
 
 
-def format_leaderboard(title, players, my_nicks, time_slot, board_type):
-    if not players:
-        return f"{title}\n(нет данных)\n"
-    payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    # Считаем максимальную длину ника С УЧЁТОМ "* "
-    max_nick_len = 0
-    for p in players:
-        nick = p["nick_name"]
-        if nick in my_nicks:
-            nick = f"{nick}***"
-        max_nick_len = max(max_nick_len, len(nick))
-    max_points_len = max(len(str(p["points"])) for p in players)
-    lines = [title]
-    for p in players:
-        place = p["place"]
-        payout = payout_data.get(place, 0)
-        nick_display = p["nick_name"]
-        is_my = nick_display in my_nicks
-        if is_my:
-            nick_display = f"{nick_display}***"
-        line = (
-            f"{place:>2}. "
-            f"{nick_display:<{max_nick_len}}  "
-            f"{p['points']:<{max_points_len}}  "
-            f"${payout}"
-        )
-        lines.append(line)
-    return "\n".join(lines)
-
-
 def format_leaderboard_with_roles(players, my_nicks, time_slot, board_type, guild):
     if not players:
         return None
-
     payout_data = payouts.get(time_slot, {}).get(board_type, {})
-    lines = []
-    
+    lines = []    
     for p in players:
         # Гарантируем наличие места (если его нет в объекте p)
         place = p.get('place', '?')
         nick = p['nick_name']
         points = p['points']
         payout = payout_data.get(place, 0)
-
         if nick in my_nicks:
             role = discord.utils.find(lambda r: r.name == nick, guild.roles)
             # Используем mention только если роль реально существует
             display_nick = role.mention if role else f"**{nick}**"
         else:
             display_nick = nick
-
         # Компактный формат для Embed, чтобы влезть в лимиты
         line = f"`{place:>2}.` {display_nick} — `{points:.2f}` — **${payout}**"
         lines.append(line)
-
     # Собираем строки
-    result = "\n".join(lines)
-    
+    result = "\n".join(lines)    
     # Защита от превышения лимита Discord (1024 символа для Field)
     if len(result) > 1000:
         return result[:990] + "..."
@@ -289,63 +253,6 @@ async def test_api(ctx):
     except Exception as e:
         await ctx.send(f"❌ Ошибка подключения: {e}")
 
-
-
-
-async def leaderboard(ctx):
-    my_nicks_str = os.getenv("MY_NICKNAMES")
-    if my_nicks_str:
-        my_nicks = [nick.strip() for nick in my_nicks_str.split(",")]
-    else:
-        my_nicks = []
-
-    date_str, time_slot = get_utc_date_time_slot()
-
-    # High leaderboard
-    high = get_leaderboard("high-4hr")
-    for i, player in enumerate(high, start=1):
-        player["place"] = i
-    top10 = high[:11]
-    top10_names = {p["nick_name"] for p in top10}
-    my_outside_top = [p for p in high if p["nick_name"] in my_nicks and p["nick_name"] not in top10_names]
-    new_high = top10 + my_outside_top
-
-    # Low leaderboard
-    low = get_leaderboard("low-4hr")
-    for i, player in enumerate(low, start=1):
-        player["place"] = i
-    top15 = low[:16]
-    top15_names = {p["nick_name"] for p in top15}
-    my_outside_top = [p for p in low if p["nick_name"] in my_nicks and p["nick_name"] not in top15_names]
-    new_low = top15 + my_outside_top
-
-
-    msg = "```\n"
-    msg += format_leaderboard(
-        "🥇 High leaderboard (TOP 10)",
-        new_high,
-        my_nicks,
-        time_slot=time_slot,
-        board_type="high_leaderboard"
-    )
-    msg += "\n"
-    msg += format_leaderboard(
-        "🥈 Low leaderboard (TOP 15)",
-        new_low,
-        my_nicks,
-        time_slot=time_slot,
-        board_type="low_leaderboard"
-    )
-    msg += "```"
-
-    if my_nicks:
-        msg += (
-            "\n⭐ — ваши участники\n"
-            "💡 Чтобы выделить цветом ник на сервере: создайте роль с цветом и назначьте её участнику."
-        )
-
-    await ctx.send(msg)
-
 # --- НОВАЯ ФУНКЦИЯ: Единая логика формирования и отправки ---
 async def send_leaderboard_logic(destination, guild):
     """
@@ -380,7 +287,6 @@ async def send_leaderboard_logic(destination, guild):
         colour=Colour.from_rgb(30, 144, 255),
         timestamp=datetime.now(timezone.utc)
     )
-
     try:
         high_text = format_leaderboard_with_roles(new_high, my_nicks, time_slot, "high_leaderboard", guild)
         embed.add_field(name="🥇 High leaderboard (TOP 10)", value=high_text or "(нет данных)", inline=False)
@@ -398,18 +304,14 @@ async def send_leaderboard_logic(destination, guild):
 # --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
 async def schedule_end_of_slot_update(slot_id, guild_id):
     global target_channel_id    
-    now = datetime.now(timezone.utc)
-    
+    now = datetime.now(timezone.utc)    
     # Вычисляем конец 4-часового слота
     next_slot_hour = (now.hour // 4 + 1) * 4    
     target = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=(next_slot_hour - now.hour))
-    target -= timedelta(seconds=15) # За 15 секунд до конца
-    
-    wait_seconds = (target - now).total_seconds()    
-    
+    target -= timedelta(seconds=15) # За 15 секунд до конца    
+    wait_seconds = (target - now).total_seconds()
     if wait_seconds > 0:
         await asyncio.sleep(wait_seconds)        
-        
         channel = bot.get_channel(target_channel_id)
         guild = bot.get_guild(guild_id)
         if channel and guild:
@@ -419,19 +321,15 @@ async def schedule_end_of_slot_update(slot_id, guild_id):
 # --- ОБНОВЛЕННАЯ КОМАНДА ---
 @bot.command(name="k", aliases=["л", "l", "д"])
 async def coloredleaderboard(ctx):
-    global last_scheduled_slot, target_channel_id    
-    
+    global last_scheduled_slot, target_channel_id        
     # 1. Сразу выдаем текущий лидерборд
-    await send_leaderboard_logic(ctx.channel, ctx.guild)
-    
+    await send_leaderboard_logic(ctx.channel, ctx.guild)    
     # 2. Логика планирования авто-отчета
     date_str, time_slot = get_utc_date_time_slot()
-    current_slot_id = f"{date_str}_{time_slot}"    
-    
+    current_slot_id = f"{date_str}_{time_slot}"       
     if last_scheduled_slot != current_slot_id:
         last_scheduled_slot = current_slot_id
-        target_channel_id = ctx.channel.id
-        
+        target_channel_id = ctx.channel.id        
         # Запускаем фоновый таймер
         asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id))
         logger.info(f"Таймер запущен для слота {time_slot}. Выполнится в {current_slot_id} :59:45")
