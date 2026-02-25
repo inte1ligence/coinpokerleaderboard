@@ -352,7 +352,7 @@ async def coloredleaderboard(ctx):
     current_slot_id = f"{date_str}_{time_slot}"       
     #if last_scheduled_slot != current_slot_id:
     last_scheduled_slot = current_slot_id
-   await ctx.send("🔍 Запускаю ТЕСТ-5сек и ТАЙМЕР-30сек...")
+    await ctx.send("🔍 Запускаю ТЕСТ-5сек и ТАЙМЕР-30сек...")
     
     # Запуск теста
     asyncio.create_task(simple_test(ctx.channel.id))
