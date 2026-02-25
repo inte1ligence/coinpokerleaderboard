@@ -339,12 +339,12 @@ async def coloredleaderboard(ctx):
     date_str, time_slot = get_utc_date_time_slot()
     current_slot_id = f"{date_str}_{time_slot}"       
     #if last_scheduled_slot != current_slot_id:
-    last_scheduled_slot = current_slot_id
+    #last_scheduled_slot = current_slot_id
     
-    await ctx.send(f"🛠 [DEBUG]: Команда принята. ID: `{target_channel_id}`. Запускаю task...")        
+    #await ctx.send(f"🛠 [DEBUG]: Команда принята. ID: `{target_channel_id}`. Запускаю task...")        
     
     # Запускаем фоновую задачу
-    asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
+    #asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
 
 
 
