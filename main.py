@@ -303,41 +303,35 @@ async def send_leaderboard_logic(destination, guild):
         logger.error(f"Ошибка при формировании Embed: {e}")
 
 # --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
+async def simple_test(channel_id):
+    await asyncio.sleep(5)
+    # Используем fetch_channel, так как Railway часто теряет кэш
+    try:
+        ch = await bot.fetch_channel(channel_id)
+        await ch.send("✅ **[TEST]**: Фоновые задачи работают (5 сек прошло)!")
+    except Exception as e:
+        print(f"Ошибка в тесте: {e}")
+
+# 2. ОСНОВНОЙ ТАЙМЕР
 async def schedule_end_of_slot_update(slot_id, guild_id, target_id):
     try:
-        # Пытаемся отправить лог старта
-        channel = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
-        await channel.send(f"🟢 [TASK]: Старт. Слот `{slot_id}`. Жду 30 сек...")
+        # Сразу даем знать, что мы зашли в функцию
+        ch = await bot.fetch_channel(target_id)
+        await ch.send(f"📡 **[LOG]**: Задача для слота `{slot_id}` активна.")
         
         await asyncio.sleep(30)
         
-        # Свежее получение объектов
-        guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
+        # Обновляем объекты
+        guild = await bot.fetch_guild(guild_id)
+        await ch.send(f"⏳ **[LOG]**: 30 сек прошло. Обновляю лидерборд...")
         
-        await channel.send("🟡 [TASK]: Время вышло. Вызываю logic...")
+        # Вызов логики
+        await send_leaderboard_logic(ch, guild)
         
-        # Обернем саму логику отдельно
-        try:
-            await send_leaderboard_logic(channel, guild)
-            await channel.send("🔵 [TASK]: logic выполнена.")
-        except Exception as logic_err:
-            await channel.send(f"❌ Ошибка в send_leaderboard_logic: `{logic_err}`")
-
     except Exception as e:
-        # Если код упал здесь, значит бот не может даже отправить сообщение
-        print(f"FATAL ERROR: {e}")
-        # Попробуем отправить хоть куда-то
-        try:
-            ch = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
-            await ch.send(f"🆘 КРИТИЧЕСКАЯ ОШИБКА ТАЙМЕРА: `{type(e).__name__}: {e}`")
-        except:
-            pass
-
-
-async def simple_test(channel_id):
-    await asyncio.sleep(5)
-    ch = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
-    await ch.send("✅ ТЕСТ: Я проснулся через 5 секунд! Значит, фоновые задачи работают.")
+        # Вывод ошибки прямо в канал
+        ch = await bot.fetch_channel(target_id)
+        await ch.send(f"❌ **[CRITICAL ERROR]**: ```py\n{e}\n```")
 
 
 # --- ОБНОВЛЕННАЯ КОМАНДА ---
@@ -351,14 +345,11 @@ async def coloredleaderboard(ctx):
     date_str, time_slot = get_utc_date_time_slot()
     current_slot_id = f"{date_str}_{time_slot}"       
     #if last_scheduled_slot != current_slot_id:
-    last_scheduled_slot = current_slot_id
-    await ctx.send("🔍 Запускаю ТЕСТ-5сек и ТАЙМЕР-30сек...")
+    await ctx.send("🔍 Попытка запуска задач через `bot.loop`...")
     
-    # Запуск теста
-    asyncio.create_task(simple_test(ctx.channel.id))
-    
-    # Запуск основного таймера с передачей САМОГО бота
-    asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
+    # ГАРАНТИРОВАННЫЙ запуск через цикл событий бота
+    bot.loop.create_task(simple_test(ctx.channel.id))
+    bot.loop.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
 
 
 
