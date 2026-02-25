@@ -305,19 +305,34 @@ async def send_leaderboard_logic(destination, guild):
 # --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
 async def schedule_end_of_slot_update(slot_id, guild_id):
     global target_channel_id    
-    #now = datetime.now(timezone.utc)    
-    # Вычисляем конец 4-часового слота
-    #next_slot_hour = (now.hour // 4 + 1) * 4    
-    #target = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=(next_slot_hour - now.hour))
-    #target -= timedelta(seconds=15) # За 15 секунд до конца    
-    wait_seconds = 60#(target - now).total_seconds()
-    if wait_seconds > 0:
-        await asyncio.sleep(wait_seconds)        
-        channel = bot.get_channel(target_channel_id)
-        guild = bot.get_guild(guild_id)
-        if channel and guild:
-            await channel.send("📢 **Итоговый отчет за текущий слот:**")
-            await send_leaderboard_logic(channel, guild)
+    
+    # Пытаемся сразу найти канал для логов
+    test_channel = bot.get_channel(target_channel_id)
+    if test_channel:
+        await test_channel.send(f"🛠 [DEBUG]: Таймер на 60 сек запущен для слота `{slot_id}`...")
+
+    # Ждем 60 секунд
+    await asyncio.sleep(60)        
+    
+    # Повторно получаем объекты (важно fetch_channel, если кэш пустой)
+    channel = bot.get_channel(target_channel_id) or await bot.fetch_channel(target_channel_id)
+    guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
+
+    if channel:
+        await channel.send("🛠 [DEBUG]: 60 секунд прошло, начинаю сбор данных...")
+        
+        if guild:
+            try:
+                # Основная логика отправки
+                await channel.send("📢 **Итоговый отчет (тест 1 минута):**")
+                await send_leaderboard_logic(channel, guild)
+                await channel.send("✅ [DEBUG]: Функция send_leaderboard_logic отработала.")
+            except Exception as e:
+                await channel.send(f"❌ [DEBUG] Ошибка внутри логики: `{e}`")
+        else:
+            await channel.send("❌ [DEBUG] Ошибка: Не удалось найти объект Guild.")
+    else:
+        print(f"Критическая ошибка: даже через fetch не нашли канал {target_channel_id}")
 
 # --- ОБНОВЛЕННАЯ КОМАНДА ---
 @bot.command(name="k", aliases=["л", "l", "д"])
@@ -330,10 +345,8 @@ async def coloredleaderboard(ctx):
     current_slot_id = f"{date_str}_{time_slot}"       
     if last_scheduled_slot != current_slot_id:
         last_scheduled_slot = current_slot_id
-        target_channel_id = ctx.channel.id        
-        # Запускаем фоновый таймер
+        await ctx.send(f"🛠 [DEBUG]: Создаю задачу asyncio.create_task на 60 сек...")
         asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id))
-        logger.info(f"Таймер запущен для слота {time_slot}. Выполнится в {current_slot_id} :59:45")
 
 # Запуск бота (без изменений)
 if __name__ == "__main__":
