@@ -304,30 +304,28 @@ async def send_leaderboard_logic(destination, guild):
 
 # --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
 async def schedule_end_of_slot_update(slot_id, guild_id, target_id):
-    # Пытаемся получить канал СРАЗУ, пока контекст свежий
-    channel = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
-    
-    if channel:
-        await channel.send(f"⏳ [DEBUG]: Таймер пошел (60 сек). Ожидайте...")
-    
+    # 1. Сначала находим канал, чтобы было куда писать дебаг
     try:
-        await asyncio.sleep(60)
+        channel = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
+        if channel:
+            await channel.send(f"⏳ [DEBUG]: Таймер на 60 сек ЗАПУЩЕН для канала `{target_id}`. Ждите...")
+        
+        # 2. Ждем
+        await asyncio.sleep(60)        
         
         if channel:
-            await channel.send("🔔 [DEBUG]: 60 секунд прошло. Запрашиваю данные с API...")
-        
-        # Получаем гильдию
+            await channel.send("🔔 [DEBUG]: 60 секунд прошло! Вызываю логику...")
+
         guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
         
-        # ВАЖНО: проверяем, не падает ли сама логика формирования
+        # 3. Сама отправка
         await send_leaderboard_logic(channel, guild)
         
-        await channel.send("✅ [DEBUG]: Отчет за слот отправлен.")
-        
     except Exception as e:
-        if channel:
-            await channel.send(f"❌ [DEBUG]: Ошибка в таймере: `{e}`")
-        print(f"Ошибка таймера: {e}")
+        # Если упадет — мы увидим причину
+        print(f"Ошибка в таймере: {e}")
+        if 'channel' in locals() and channel:
+            await channel.send(f"❌ [DEBUG]: Ошибка таймера: `{e}`")
 
 
 # --- ОБНОВЛЕННАЯ КОМАНДА ---
@@ -340,10 +338,15 @@ async def coloredleaderboard(ctx):
     target_channel_id = ctx.channel.id
     date_str, time_slot = get_utc_date_time_slot()
     current_slot_id = f"{date_str}_{time_slot}"       
-    if last_scheduled_slot != current_slot_id:
-        last_scheduled_slot = current_slot_id
-        await ctx.send(f"🛠 [DEBUG]: Создаю задачу на 60 сек. ID канала: `{target_channel_id}`")        
-        asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
+    #if last_scheduled_slot != current_slot_id:
+    last_scheduled_slot = current_slot_id
+    
+    await ctx.send(f"🛠 [DEBUG]: Команда принята. ID: `{target_channel_id}`. Запускаю task...")        
+    
+    # Запускаем фоновую задачу
+    asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
+
+
 
 # Запуск бота (без изменений)
 if __name__ == "__main__":
