@@ -29,8 +29,7 @@ intents.messages = True
 
 bot = commands.Bot(command_prefix="!", intents=intents, help_command=None)
 COINPOKER_URL = "https://coinpoker.com/wp-admin/admin-ajax.php"  # ← Исправьте на "https://..."
-last_scheduled_slot = None
-target_channel_id = None 
+active_slots = set()
 payouts = {
     "00-04": {
         "high_leaderboard": {
@@ -255,8 +254,21 @@ async def test_api(ctx):
     except Exception as e:
         await ctx.send(f"❌ Ошибка подключения: {e}")
 
+
+def format_time_left(seconds):
+    if seconds <= 20: # Для финишного отчета за 15 сек
+        return f" | 🏁 ФИНИШ: {seconds} сек!"
+    
+    minutes = round(seconds / 60)
+    if minutes >= 120:
+        return f" | ⏳ Осталось: {minutes // 60} часа"
+    elif minutes >= 60:
+        return f" | ⏳ Осталось: 1 час"
+    else:
+        return f" | ⏳ Осталось: {minutes} мин."
+
 # --- НОВАЯ ФУНКЦИЯ: Единая логика формирования и отправки ---
-async def send_leaderboard_logic(destination, guild):
+async def send_leaderboard_logic(destination, guild, seconds_left=None):
     """
     destination: объект ctx.channel или просто channel
     guild: объект гильдии (нужен для ролей)
@@ -265,7 +277,7 @@ async def send_leaderboard_logic(destination, guild):
     my_nicks = [nick.strip() for nick in my_nicks_str.split(",")] if my_nicks_str else []
 
     date_str, time_slot = get_utc_date_time_slot()
-
+    timer_text = format_time_left(seconds_left) if seconds_left is not None else ""
     # High leaderboard
     high = await get_leaderboard("high-4hr")
     for i, player in enumerate(high, start=1):
@@ -285,7 +297,7 @@ async def send_leaderboard_logic(destination, guild):
     new_low = top15 + my_outside_top_low
 
     embed = Embed(
-        title=f"🏆 Лидерборд CoinPoker ({time_slot})",
+        title=f"🏆 Лидерборд CoinPoker ({time_slot}){timer_text}",
         colour=Colour.from_rgb(30, 144, 255),
         timestamp=datetime.now(timezone.utc)
     )
@@ -303,55 +315,71 @@ async def send_leaderboard_logic(destination, guild):
     except Exception as e:
         logger.error(f"Ошибка при формировании Embed: {e}")
 
-# --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
-async def simple_test(channel_id):
-    await asyncio.sleep(5)
-    # Используем fetch_channel, так как Railway часто теряет кэш
-    try:
-        ch = await bot.fetch_channel(channel_id)
-        await ch.send("✅ **[TEST]**: Фоновые задачи работают (5 сек прошло)!")
-    except Exception as e:
-        print(f"Ошибка в тесте: {e}")
+def get_remaining_seconds():
+    """Считает секунды до конца текущего 4-часового слота (00, 04, 08, 12, 16, 20 UTC)"""
+    now = datetime.now(timezone.utc)
+    # Находим следующий час, кратный 4
+    next_slot_hour = ((now.hour // 4) + 1) * 4
+    
+    if next_slot_hour >= 24:
+        target_time = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    else:
+        target_time = now.replace(hour=next_slot_hour, minute=0, second=0, microsecond=0)
+    
+    return int((target_time - now).total_seconds())
 
-# 2. ОСНОВНОЙ ТАЙМЕР
-async def schedule_end_of_slot_update(slot_id, guild_id, target_id):
+async def smart_scheduler(slot_id, guild_id, target_id):
+    if slot_id in active_slots: return
+    active_slots.add(slot_id)
+    
+    # Список секунд до конца: 2ч, 1ч, 30м, 15м, 5м, 15сек
+    milestones = [7200, 3600, 1800, 900, 300, 15]
+    
     try:
-        # Сразу даем знать, что мы зашли в функцию
-        ch = await bot.fetch_channel(target_id)
-        await ch.send(f"📡 **[LOG]**: Задача для слота `{slot_id}` активна.")
+        channel = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
+        guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
         
-        await asyncio.sleep(30)
-        
-        # Обновляем объекты
-        guild = await bot.fetch_guild(guild_id)
-        await ch.send(f"⏳ **[LOG]**: 30 сек прошло. Обновляю лидерборд...")
-        
-        # Вызов логики
-        await send_leaderboard_logic(ch, guild)
-        
+        while milestones:
+            seconds_left = get_remaining_seconds()
+            
+            # Ищем следующую отметку, до которой еще не дошли
+            current_goal = None
+            for m in milestones:
+                if seconds_left > m:
+                    current_goal = m
+                    break
+            
+            if current_goal is not None:
+                # Спим ровно до этой отметки
+                await asyncio.sleep(seconds_left - current_goal)
+                
+                # Снова проверяем остаток для точности заголовка
+                now_left = get_remaining_seconds()
+                await send_leaderboard_logic(channel, guild, seconds_left=now_left)
+                
+                milestones.remove(current_goal)
+            else:
+                break # Все отметки пройдены или время вышло
+
     except Exception as e:
-        # Вывод ошибки прямо в канал
-        ch = await bot.fetch_channel(target_id)
-        await ch.send(f"❌ **[CRITICAL ERROR]**: ```py\n{e}\n```")
+        print(f"Ошибка планировщика: {e}")
+    finally:
+        active_slots.discard(slot_id)
 
 
 # --- ОБНОВЛЕННАЯ КОМАНДА ---
 @bot.command(name="k", aliases=["л", "l", "д"])
 async def coloredleaderboard(ctx):
-    global last_scheduled_slot, target_channel_id        
-    # 1. Сразу выдаем текущий лидерборд
-    await send_leaderboard_logic(ctx.channel, ctx.guild)    
-    # 2. Логика планирования авто-отчета
-    target_channel_id = ctx.channel.id
-    date_str, time_slot = get_utc_date_time_slot()
-    current_slot_id = f"{date_str}_{time_slot}"       
-    #if last_scheduled_slot != current_slot_id:
-    await ctx.send("🔍 Попытка запуска задач через `bot.loop`...")
+    # 1. Мгновенный отчет
+    await send_leaderboard_logic(ctx.channel, ctx.guild)
     
-    # ГАРАНТИРОВАННЫЙ запуск через цикл событий бота
-    bot.loop.create_task(simple_test(ctx.channel.id))
-    bot.loop.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
-
+    # 2. Запуск цепочки уведомлений
+    date_str, time_slot = get_utc_date_time_slot()
+    current_slot_id = f"{date_str}_{time_slot}"
+    
+    # Запускаем один раз на слот
+    if current_slot_id not in active_slots:
+        bot.loop.create_task(smart_scheduler(current_slot_id, ctx.guild.id, ctx.channel.id))
 
 
 # Запуск бота (без изменений)
