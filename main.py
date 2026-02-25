@@ -304,50 +304,32 @@ async def send_leaderboard_logic(destination, guild):
 
 # --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
 async def schedule_end_of_slot_update(slot_id, guild_id, target_id):
-    channel = None
+    print(f"DEBUG CONSOLE: Task started for {target_id}") # Это проверим в консоли
     try:
-        # 1. Сразу пытаемся найти канал для логов
-        channel = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
-        if channel:
-            await channel.send(f"🛰 [LOG]: Таймер запущен на 30 сек. Слот: `{slot_id}`")
+        # Пытаемся получить канал максимально агрессивно
+        channel = bot.get_channel(target_id)
+        if not channel:
+            channel = await bot.fetch_channel(target_id)
         
-        # 2. Ожидание
+        await channel.send(f"🛰 [LOG]: Вход в task выполнен. Жду 30 сек...")
+        
         await asyncio.sleep(30)
         
-        if channel:
-            await channel.send("⏳ [LOG]: 30 секунд прошло. Начинаю сбор данных...")
-
-        # 3. Получаем объект гильдии (важно для ролей)
+        await channel.send("⏳ [LOG]: 30 сек прошло, начинаю fetch гильдии...")
         guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
-        if not guild:
-            if channel: await channel.send("❌ [ERROR]: Не удалось найти сервер (guild) по ID.")
-            return
-
-        # 4. Проверка функций получения данных
-        if channel: await channel.send("📡 [LOG]: Запрашиваю данные из API...")
         
-        # Вызываем основную логику
+        await channel.send(f"📡 [LOG]: Гильдия найдена: `{guild.name}`. Запуск logic...")
         await send_leaderboard_logic(channel, guild)
-        
-        if channel:
-            await channel.send("✅ [LOG]: Задача завершена успешно.")
 
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(error_details) # Оставляем в консоли на всякий случай
-        
-        if channel:
-            # Разбиваем длинную ошибку, если она больше 2000 символов
-            msg = f"‼️ [CRITICAL ERROR]:\n```py\n{error_details[:1800]}\n```"
-            await channel.send(msg)
-        else:
-            print(f"Не удалось отправить лог ошибки в канал {target_id}: {e}")
-
-# В команде @bot.command(name="k") тоже не забудьте поменять:
-# asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
-
-
+        # Если бот не может отправить в канал, мы увидим это хотя бы в консоли
+        print(f"CRITICAL IN TASK: {e}")
+        # Попытка отправить в канал еще раз
+        try:
+            ch = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
+            await ch.send(f"‼️ Ошибка внутри таймера: `{e}`")
+        except:
+            pass
 
 # --- ОБНОВЛЕННАЯ КОМАНДА ---
 @bot.command(name="k", aliases=["л", "l", "д"])
@@ -361,11 +343,15 @@ async def coloredleaderboard(ctx):
     current_slot_id = f"{date_str}_{time_slot}"       
     #if last_scheduled_slot != current_slot_id:
     last_scheduled_slot = current_slot_id
+    await ctx.send(f"🛠 [DEBUG]: Команда принята. ID канала: `{ctx.channel.id}`, ID гильдии: `{ctx.guild.id}`")        
     
-    await ctx.send(f"🛠 [DEBUG]: Команда принята. ID: `{target_channel_id}`. Запускаю task...")        
+    # Создаем задачу и сразу даем ей перехватить цикл
+    task = asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
     
-    # Запускаем фоновую задачу
-    asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id, ctx.channel.id))
+    # Проверка: не упала ли задача мгновенно
+    await asyncio.sleep(0.5) 
+    if task.done() and task.exception():
+        await ctx.send(f"❌ [DEBUG]: Задача упала мгновенно: `{task.exception()}`")
 
 
 
