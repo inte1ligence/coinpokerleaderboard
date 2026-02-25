@@ -304,21 +304,31 @@ async def send_leaderboard_logic(destination, guild):
 
 # --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
 async def schedule_end_of_slot_update(slot_id, guild_id, target_id):
+    # Пытаемся получить канал СРАЗУ, пока контекст свежий
+    channel = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
+    
+    if channel:
+        await channel.send(f"⏳ [DEBUG]: Таймер пошел (60 сек). Ожидайте...")
+    
     try:
-        print(f"DEBUG Внутри таймера: получен ID {target_id}")
+        await asyncio.sleep(60)
         
-        # Ждем 60 сек
-        await asyncio.sleep(60)        
+        if channel:
+            await channel.send("🔔 [DEBUG]: 60 секунд прошло. Запрашиваю данные с API...")
         
-        # Используем переданный ID напрямую
-        channel = bot.get_channel(target_id) or await bot.fetch_channel(target_id)
+        # Получаем гильдию
         guild = bot.get_guild(guild_id) or await bot.fetch_guild(guild_id)
-
-        if channel and guild:
-            await channel.send("📢 **Итоговый отчет (тест 1 минута прошла):**")
-            await send_leaderboard_logic(channel, guild)
+        
+        # ВАЖНО: проверяем, не падает ли сама логика формирования
+        await send_leaderboard_logic(channel, guild)
+        
+        await channel.send("✅ [DEBUG]: Отчет за слот отправлен.")
+        
     except Exception as e:
-        print(f"Ошибка в таймере: {e}")
+        if channel:
+            await channel.send(f"❌ [DEBUG]: Ошибка в таймере: `{e}`")
+        print(f"Ошибка таймера: {e}")
+
 
 # --- ОБНОВЛЕННАЯ КОМАНДА ---
 @bot.command(name="k", aliases=["л", "l", "д"])
