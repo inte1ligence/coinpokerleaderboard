@@ -305,12 +305,12 @@ async def send_leaderboard_logic(destination, guild):
 # --- НОВАЯ ФУНКЦИЯ: Таймер авто-отчета ---
 async def schedule_end_of_slot_update(slot_id, guild_id):
     global target_channel_id    
-    now = datetime.now(timezone.utc)    
+    #now = datetime.now(timezone.utc)    
     # Вычисляем конец 4-часового слота
-    next_slot_hour = (now.hour // 4 + 1) * 4    
-    target = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=(next_slot_hour - now.hour))
-    target -= timedelta(seconds=15) # За 15 секунд до конца    
-    wait_seconds = (target - now).total_seconds()
+    #next_slot_hour = (now.hour // 4 + 1) * 4    
+    #target = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=(next_slot_hour - now.hour))
+    #target -= timedelta(seconds=15) # За 15 секунд до конца    
+    wait_seconds = 60#(target - now).total_seconds()
     if wait_seconds > 0:
         await asyncio.sleep(wait_seconds)        
         channel = bot.get_channel(target_channel_id)
