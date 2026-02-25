@@ -96,7 +96,7 @@ def get_utc_date_time_slot():
     return date_str, time_slot
 
 
-def get_leaderboard(board_type_api):
+async def get_leaderboard(board_type_api):
     date_str, time_slot = get_utc_date_time_slot()
     # Сопоставление типов для API и payouts
     board_type_payout = {
@@ -130,7 +130,7 @@ def get_leaderboard(board_type_api):
                 logger.warning(f"Попытка {attempt + 1} API вернул код {r.status_code}: {r.text}")
         except requests.exceptions.RequestException as e:
             logger.error(f"Попытка {attempt + 1} ошибка сети: {e}, URL: {COINPOKER_URL}, данные: {data}")
-        time.sleep(2)
+        await asyncio.sleep(2) 
     return []
 
 
@@ -212,8 +212,8 @@ async def test_nicks(ctx):
 
     # 2. Получаем данные лидербордов
     date_str, time_slot = get_utc_date_time_slot()
-    high = get_leaderboard("high-4hr")
-    low = get_leaderboard("low-4hr")
+    high = await get_leaderboard("high-4hr")
+    low = await get_leaderboard("low-4hr")
 
     # Объединяем оба лидерборда в один список игроков
     all_players = high + low
@@ -266,7 +266,7 @@ async def send_leaderboard_logic(destination, guild):
     date_str, time_slot = get_utc_date_time_slot()
 
     # High leaderboard
-    high = get_leaderboard("high-4hr")
+    high = await get_leaderboard("high-4hr")
     for i, player in enumerate(high, start=1):
         player["place"] = i
     top10 = high[:11]
@@ -275,7 +275,7 @@ async def send_leaderboard_logic(destination, guild):
     new_high = top10 + my_outside_top_high
     
     # Low leaderboard
-    low = get_leaderboard("low-4hr")
+    low = await get_leaderboard("low-4hr")
     for i, player in enumerate(low, start=1):
         player["place"] = i
     top15 = low[:16]
@@ -345,7 +345,8 @@ async def coloredleaderboard(ctx):
     current_slot_id = f"{date_str}_{time_slot}"       
     if last_scheduled_slot != current_slot_id:
         last_scheduled_slot = current_slot_id
-        await ctx.send(f"🛠 [DEBUG]: Создаю задачу asyncio.create_task на 60 сек...")
+        await ctx.send(f"🛠 [DEBUG]: Создаю задачу на 60 сек. ID канала: `{target_channel_id}`")
+        
         asyncio.create_task(schedule_end_of_slot_update(current_slot_id, ctx.guild.id))
 
 # Запуск бота (без изменений)
