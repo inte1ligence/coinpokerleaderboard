@@ -12,6 +12,7 @@ from typing import List, Dict, Optional
 import os
 import logging
 import sys
+import asyncio
 
 print("Utils доступен:", hasattr(utils, 'get'))  # Должен вывести True
 print(sys.version)
